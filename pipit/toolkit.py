@@ -72,8 +72,65 @@ def bwa_align(refrence: pathlib.Path,
         cmd = f"docker run -v {str(refrence.parent.absolute())}:{str(refrence.parent.absolute())} {config.docker['bwa']} bwa mem -t {number_of_threads} {str(refrence.absolute())} {str(fastq_1.absolute())} {str(fastq_2.absolute())} > {str(output_file.absolute())}"
     
     return cmd
-                
 
+def sam2bam(sam_file: pathlib.Path,
+            output_file: pathlib.Path,
+            container:str="none", 
+            config:conf.Containers=conf.Containers()
+            ) -> str:   
+    """ This function will return the command to convert a sam file to a bam file.
+    Args:
+        sam_file (pathlib.Path): The path to the sam file.
+        output_file (pathlib.Path): The path to the output file.
+        container (str): The name of the container to run the command in:
+        choose from "none","singularity","docker".
+        config (conf.Containers): The configuration for the containers.
+    Returns:
+        str: The command to convert a sam file to a bam file.
+    """
+    if not sam_file.exists():
+        raise FileNotFoundError(f"{sam_file} not found")
+
+    if container == "none":
+        cmd = f"samtools view -bS {str(sam_file.absolute())} > {str(output_file.absolute())}"
+
+    elif container == "singularity":
+        cmd = f"singularity exec --bind {str(sam_file.parent.absolute())}:{str(sam_file.parent.absolute())} {config.singularity['samtools']} samtools view -bS {str(sam_file.absolute())} > {str(output_file.absolute())}"
+    
+    elif container == "docker":
+        cmd = f"docker run -v {str(sam_file.parent.absolute())}:{str(sam_file.parent.absolute())} {config.docker['samtools']} samtools view -bS {str(sam_file.absolute())} > {str(output_file.absolute())}"
+    
+    return cmd
+
+def sort_bam(bam_file: pathlib.Path,
+                output_file: pathlib.Path,
+                container:str="none",
+                config:conf.Containers=conf.Containers()
+                ) -> str:
+    """ This function will return the command to sort a bam file.
+    Args:
+        bam_file (pathlib.Path): The path to the bam file.
+        output_file (pathlib.Path): The path to the output file.
+        container (str): The name of the container to run the command in:
+        choose from "none","singularity","docker".
+        config (conf.Containers): The configuration for the containers.
+    Returns:
+        str: The command to sort a bam file.
+    """
+    if not bam_file.exists():
+        raise FileNotFoundError(f"{bam_file} not found")
+    
+    if container == "none":
+        cmd = f"samtools sort {str(bam_file.absolute())} > {str(output_file.absolute())}"
+    
+    elif container == "singularity":
+        cmd = f"singularity exec --bind {str(bam_file.parent.absolute())}:{str(bam_file.parent.absolute())} {config.singularity['samtools']} samtools sort {str(bam_file.absolute())} > {str(output_file.absolute())}"
+    
+    elif container == "docker":
+        cmd = f"docker run -v {str(bam_file.parent.absolute())}:{str(bam_file.parent.absolute())} {config.docker['samtools']} samtools sort {str(bam_file.absolute())} > {str(output_file.absolute())}"
+    
+    return cmd
+    
 
 def get_slurm_queue_status(keys_to_include:Iterable=["name","job_id","job_state"])->list:
     """ This function will return the status of the slurm queue.

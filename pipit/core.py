@@ -13,12 +13,27 @@ class State:
     pass
 
 class Step:
-    def __init__(self,name:str,command:Command,input:IO,container:str,config:conf.StepConfig):
-        self.config = config
-        self._delivers:None
-        self._requires:None
     
+    def __init__(self,name:str,
+                 command:Command,
+                 inputs:IO,
+                 outputs:IO,
+                 ):
+        self.name = name
+        self.command = command
+        self.inputs = inputs,
+        self.outputs = outputs
+        self.id = None
+        self._output_available = False
+        def submit(sel,executor:str="local"):
+            pass
         
+    
+    def _valdate_inputs(self):
+        pass
+        
+    def _outputs_ready(self):
+        pass
 
 class Pipeline:
     def __init__(self,steps:list[Layer],config:conf.PipelineConfig):
