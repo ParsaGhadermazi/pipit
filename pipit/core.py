@@ -1,4 +1,4 @@
-import configs
+import conf
 
 class IO:
     pass
@@ -13,7 +13,7 @@ class State:
     pass
 
 class Step:
-    def __init__(self,name:str,command:Command,input:IO,container:str,config:configs.StepConfig):
+    def __init__(self,name:str,command:Command,input:IO,container:str,config:conf.StepConfig):
         self.config = config
         self._delivers:None
         self._requires:None
@@ -21,7 +21,7 @@ class Step:
         
 
 class Pipeline:
-    def __init__(self,steps:list[Layer],config:configs.PipelineConfig):
+    def __init__(self,steps:list[Layer],config:conf.PipelineConfig):
         self.steps = steps
         self.config = config
 
