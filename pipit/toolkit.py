@@ -60,13 +60,13 @@ def bwa_align(refrence: pathlib.Path,
         raise FileNotFoundError(f"{fastq_2} not found")
 
     if container == "none":
-        cmd = f"bwa mem -t {number_of_threads} {str(refrence)} {str(fastq_1)} {str(fastq_2)} > {str(output_file)}"
+        cmd = f"bwa mem -t {number_of_threads} {str(refrence.absolute)} {str(fastq_1.absolute)} {str(fastq_2.absolute)} > {str(output_file.absolute)}"
 
     elif container == "singularity":
-        cmd = f"singularity exec --bind {str(refrence.parent)}:{str(refrence.parent)} {config.singularity['bwa']} bwa mem -t {number_of_threads} {str(refrence)} {str(fastq_1)} {str(fastq_2)} > {str(output_file)}"
+        cmd = f"singularity exec --bind {str(refrence.parent.absolute)}:{str(refrence.parent.absolute)} {config.singularity['bwa']} bwa mem -t {number_of_threads} {str(refrence.absolute)} {str(fastq_1.absolute)} {str(fastq_2.absolute)} > {str(output_file.absolute)}"
 
     elif container == "docker":
-        cmd = f"docker run -v {str(refrence.parent)}:{str(refrence.parent)} {config.docker['bwa']} bwa mem -t {number_of_threads} {str(refrence)} {str(fastq_1)} {str(fastq_2)} > {str(output_file)}"
+        cmd = f"docker run -v {str(refrence.parent.absolute)}:{str(refrence.parent.absolute)} {config.docker['bwa']} bwa mem -t {number_of_threads} {str(refrence.absolute)} {str(fastq_1.absolute)} {str(fastq_2.absolute)} > {str(output_file.absolute)}"
     
     return cmd
                 
