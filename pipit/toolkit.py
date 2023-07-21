@@ -75,7 +75,7 @@ def bwa_align(refrence: pathlib.Path,
                 
 
 
-def get_slurm_queue_status(keys_to_include:Iterable=["","job_id","job_state"],print:bool=False)->list:
+def get_slurm_queue_status(keys_to_include:Iterable=["name","job_id","job_state"],print:bool=False)->list:
     """ This function will return the status of the slurm queue. """
     out=[]
     f=subprocess.check_output(["squeue -u $USER --json"],shell=True)
