@@ -1,5 +1,8 @@
 import pathlib
 import conf
+from typing import Iterable
+import subprocess
+import json
 
 def bwa_index(refrence: pathlib.Path,
               output_name: str,
@@ -72,3 +75,16 @@ def bwa_align(refrence: pathlib.Path,
                 
 
 
+def get_slurm_queue_status(keys_to_include:Iterable=["","job_id","job_state"],print:bool=False)->list:
+    """ This function will return the status of the slurm queue. """
+    out=[]
+    f=subprocess.check_output(["squeue -u $USER --json"],shell=True)
+    f=json.loads(f)
+    for i in f:
+        out.append({key:i[key] for key in keys_to_include})
+
+    if print:
+        for i in out:
+            for j in i:
+                print(j,i[j])
+    return out
