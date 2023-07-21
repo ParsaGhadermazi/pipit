@@ -1,10 +1,10 @@
 import pathlib
-import configs
+import conf
 
 def bwa_index(refrence: pathlib.Path,
               output_name: str,
               container:str="none",
-              config:configs.Containers=configs.Containers())->str:
+              config:conf.Containers=conf.Containers())->str:
     """ This function will return the command to index the refrence genome using bwa.
     Args:
         refrence (pathlib.Path): The path to the refrence sequence file.
@@ -36,7 +36,7 @@ def bwa_align(refrence: pathlib.Path,
                 number_of_threads: int,
                 output_file: pathlib.Path,
                 container:str="none",
-                config:configs.Containers=configs.Containers())->str:
+                config:conf.Containers=conf.Containers())->str:
                 
     """ This function will return the command to align the fastq files to the refrence genome using bwa.
     Args:
