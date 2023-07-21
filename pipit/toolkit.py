@@ -18,8 +18,6 @@ def bwa_index(refrence: pathlib.Path,
         str: The command to index the refrence genome.
 
     """
-    if not refrence.exists():
-        raise FileNotFoundError(f"{refrence} not found")
 
     if container == "none":
         cmd = f"bwa index {str(refrence)} -p {output_name}"
@@ -53,14 +51,6 @@ def bwa_align(refrence: pathlib.Path,
     Returns:
         str: The command to align the fastq files to the refrence genome.
     """
-    if not refrence.exists():
-        raise FileNotFoundError(f"{refrence} not found")
-
-    if not fastq_1.exists():
-        raise FileNotFoundError(f"{fastq_1} not found")
-    
-    if not fastq_2.exists():
-        raise FileNotFoundError(f"{fastq_2} not found")
 
     if container == "none":
         cmd = f"bwa mem -t {number_of_threads} {str(refrence.absolute())} {str(fastq_1.absolute())} {str(fastq_2.absolute())} > {str(output_file.absolute())}"
@@ -88,8 +78,6 @@ def sam2bam(sam_file: pathlib.Path,
     Returns:
         str: The command to convert a sam file to a bam file.
     """
-    if not sam_file.exists():
-        raise FileNotFoundError(f"{sam_file} not found")
 
     if container == "none":
         cmd = f"samtools view -bS {str(sam_file.absolute())} > {str(output_file.absolute())}"
@@ -117,8 +105,6 @@ def sort_bam(bam_file: pathlib.Path,
     Returns:
         str: The command to sort a bam file.
     """
-    if not bam_file.exists():
-        raise FileNotFoundError(f"{bam_file} not found")
     
     if container == "none":
         cmd = f"samtools sort {str(bam_file.absolute())} > {str(output_file.absolute())}"
