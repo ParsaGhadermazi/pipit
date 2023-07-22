@@ -116,6 +116,33 @@ def sort_bam(bam_file: pathlib.Path,
         cmd = f"docker run -v {str(bam_file.parent.absolute())}:{str(bam_file.parent.absolute())} {config.docker['samtools']} samtools sort {str(bam_file.absolute())} > {str(output_file.absolute())}"
     
     return cmd
+
+def index_sorted_bam(bam_file: pathlib.Path,
+                    container:str="none",
+                    config:conf.Containers=conf.Containers()
+                    ) -> str:
+    """ This function will return the command to index a sorted bam file.
+    Args:
+        bam_file (pathlib.Path): The path to the bam file.
+        container (str): The name of the container to run the command in:
+        choose from "none","singularity","docker".
+        config (conf.Containers): The configuration for the containers.
+    Returns:
+        str: The command to index a sorted bam file.
+    """
+
+    if container == "none":
+        cmd = f"samtools index {str(bam_file.absolute())}"
+    
+    elif container == "singularity":
+        cmd = f"singularity exec --bind {str(bam_file.parent.absolute())}:{str(bam_file.parent.absolute())} {config.singularity['samtools']} samtools index {str(bam_file.absolute())}"
+
+    elif container == "docker":
+        cmd = f"docker run -v {str(bam_file.parent.absolute())}:{str(bam_file.parent.absolute())} {config.docker['samtools']} samtools index {str(bam_file.absolute())}"
+    
+    return cmd
+                     
+                    
     
 
 def get_slurm_queue_status(keys_to_include:Iterable=["name","job_id","job_state"])->list:
