@@ -143,7 +143,36 @@ def index_sorted_bam(bam_file: pathlib.Path,
     return cmd
                      
                     
+
+def cut_up_fasta(fasta_file: pathlib.Path,
+                container:str="none",
+                config:conf.Containers=conf.Containers())->str:
     
+    """ This function will return the command to cut up a fasta file for concoct.
+    Args:
+        fasta_file (pathlib.Path): The path to the assembly files to split.
+        container (str): The name of the container to run the command in:
+        choose from "none","singularity","docker".
+        config (conf.Containers): The configuration for the containers.
+    Returns:
+        str: The command to cut up a fasta file for concoct.
+    """
+
+    if container == "none":
+        cmd =f"cut_up_fasta.py {fasta_file.absolute()} -c 10000 -o 0 --merge_last -b contigs_10K.bed > contigs_10K.fa"
+    
+    elif container == "singularity":
+        cmd =f"singularity exec --bind {str(fasta_file.parent.absolute())}:{str(fasta_file.parent.absolute())} {config.singularity['concoct']} cut_up_fasta.py {fasta_file.absolute()} -c 10000 -o 0 --merge_last -b contigs_10K.bed > contigs_10K.fa"
+    
+    elif container == "docker":
+        cmd =f"docker run -v {str(fasta_file.parent.absolute())}:{str(fasta_file.parent.absolute())} {config.docker['concoct']} cut_up_fasta.py {fasta_file.absolute()} -c 10000 -o 0 --merge_last -b contigs_10K.bed > contigs_10K.fa"
+    
+    return cmd
+
+
+
+
+
 
 def get_slurm_queue_status(keys_to_include:Iterable=["name","job_id","job_state"])->list:
     """ This function will return the status of the slurm queue.
