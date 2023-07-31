@@ -1,37 +1,71 @@
 import conf
-from typing import Iterable
+from typing import Any, Iterable
 from collections import namedtuple
 from time import sleep
+from pathlib import Path
+from multiprocessing import Event,Process,Semaphore,Condition
+
 class IO:
-    pass
+    def __init__(self,inputs:dict[str,Path],
+                 outputs:dict[str,Path],
+                 validate:bool,
+                 notifier_input:Condition,
+                 notifier_output:Condition):
+        self.inputs = inputs
+        self.outputs = outputs
+        self._notifier_input = notifier_input
+        self._notifier_output = notifier_output
+        if validate:
+            self._validate()
+    
+    def __str__(self):
+        return f"Inputs: {self.inputs}\nOutputs: {self.outputs}"
 
-class Command:
-    pass
+    
+    def _validate(self):
+        for k,v in self.inputs.items():
+            if not Path(v).exists():
+                raise FileNotFoundError(f"Input file {k} not found at {v}")
+    
+    def _anounce_ready(self):
+        with self._notifier_input:
+            self._validate()
+        with self._notifier_output:
+            self._notifier_output.notify_all()
+    
+    def __call__(self,verbose:bool=False):
+        self._anounce_ready()
+        if verbose:
+            print(f"{self.__str__()} is ready.")
+    
+def _notify_for_input(ios:Iterable[IO])->None:
+    for io in ios:
+        with io._notifier_input:
+            io._notifier_input.notify()
 
-class Layer:
-    pass
+    
 
-class State:
-    pass
 
 class Task:
     
     def __init__(self,name:str,
-                 command:Command,
-                 inputs:IO,
-                 outputs:IO,
+                 command_genrator:callable,
+                 io:IO,
+                event_input_available:Event,
+                event_output_available:Event,
+                container:str,
+                semaphore:Semaphore,
                  ):
         self.name = name
-        self.command = command
-        self.inputs = inputs,
-        self.outputs = outputs
-        self.id = None
-        self._output_available = False
-        self.state="Not Started"
+        self.command_genrator = command_genrator
+        self.io = io
+        self._event_input_available = event_input_available
+        self._event_output_available = event_output_available
+        self.container = container
+        self.semaphore = semaphore
         
         
-    def submit(sel,executor:str="local"):
-        pass
+    
     def save_task(self,path:str):
         pass
         
@@ -41,6 +75,23 @@ class Task:
         
     def _outputs_ready(self):
         pass
+    
+    def __call__(self,input_available:Event,output_available:Event):
+        with self.semaphore:
+            with self._event_input_available:
+                self._valdate_inputs()
+                self._event_input_available.set()
+            
+            self.command_genrator(io=IO,
+                                container=self.container,
+                                semaphore=self.semaphore)
+                                  
+            
+            
+            with output_available:
+                self._outputs_ready()
+                self._event_output_available.set()
+        
 
 class Pipeline:
     def __init__(self,steps:list[Layer],config:conf.PipelineConfig):

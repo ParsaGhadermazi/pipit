@@ -1,34 +1,39 @@
 import pathlib
 import conf
+import core
 from typing import Iterable
 import subprocess
 import json
 
-def bwa_index(refrence: pathlib.Path,
-              output_name: str,
+def bwa_index(io:core.IO,
               container:str="none",
               config:conf.Containers=conf.Containers())->str:
     """ This function will return the command to index the refrence genome using bwa.
+    
     Args:
-        refrence (pathlib.Path): The path to the refrence sequence file.
-        output (str): The name of the output file.
+        io (core.IO): The IO object pointing to input and output files.
+        
         container (str): The name of the container to run the command in:
         choose from "none","singularity","docker".
+        config (conf.Containers): The configuration for the containers.
+    
     Returns:
-        str: The command to index the refrence genome.
-
+        str: The command to index the refrence genome using bwa.
+        
     """
 
+
     if container == "none":
-        cmd = f"bwa index {str(refrence)} -p {output_name}"
+        cmd = f"bwa index {str(io.inputs['refrence'].absolute())}"
 
     elif container == "singularity":
-        cmd = f"singularity exec --bind {str(refrence.parent)}:{str(refrence.parent)} {config.singularity['bwa']} bwa index {str(refrence)} -p {output_name}"
-    
+        cmd = f"singularity exec --bind {str(io.inputs['refrence'].parent.absolute())}:{str(io.inputs['refrence'].parent.absolute())} {config.singularity['bwa']} bwa index {str(io.inputs['refrence'].absolute())}"
+        
     elif container == "docker":
-        cmd = f"docker run -v {str(refrence.parent)}:{str(refrence.parent)} {config.docker['bwa']} bwa index {str(refrence)} -p {output_name}"
+        cmd = f"docker run -v {str(io.inputs['refrence'].parent.absolute())}:{str(io.inputs['refrence'].parent.absolute())} {config.docker['bwa']} bwa index {str(io.inputs['refrence'].absolute())}"
     
     return cmd
+        
         
 
 def bwa_align(refrence: pathlib.Path,
@@ -168,6 +173,39 @@ def cut_up_fasta(fasta_file: pathlib.Path,
         cmd =f"docker run -v {str(fasta_file.parent.absolute())}:{str(fasta_file.parent.absolute())} {config.docker['concoct']} cut_up_fasta.py {fasta_file.absolute()} -c 10000 -o 0 --merge_last -b contigs_10K.bed > contigs_10K.fa"
     
     return cmd
+
+def gtdbtk_workflow(mags_dir: pathlib.Path,
+                    output_dir: pathlib.Path,
+                    database_dir: pathlib.Path,
+                    cpus: int,
+                    container:str="none",
+                    config:conf.Containers=conf.Containers())->str:
+
+    """ This function will return the command to run the GTDB-Tk workflow.
+    Args:
+        mags_dir (pathlib.Path): The path to the directory containing the MAGs.
+        output_dir (pathlib.Path): The path to the output directory.
+        database_dir (pathlib.Path): The path to the database directory.
+        cpus (int): The number of cpus to use.
+        container (str): The name of the container to run the command in:
+        choose from "none","singularity","docker".
+        config (conf.Containers): The configuration for the containers.
+    Returns:
+        str: The command to run the GTDB-Tk workflow.
+    """
+    export_db=f"export GTDBTK_DATA_PATH={str(database_dir.absolute())}\n"
+    if container == "none":
+        cmd = f"gtdbtk classify_wf --genome_dir {str(mags_dir.absolute())} --out_dir {str(output_dir.absolute())} --cpus {cpus}"
+    
+    elif container == "singularity":
+        cmd = f"singularity exec --bind {str(mags_dir.parent.absolute())}:{str(mags_dir.parent.absolute())} {config.singularity['gtdbtk']} gtdbtk classify_wf --genome_dir {str(mags_dir.absolute())} --out_dir {str(output_dir.absolute())} --cpus {cpus}"
+    
+    elif container == "docker":
+        cmd = f"docker run -v {str(mags_dir.parent.absolute())}:{str(mags_dir.parent.absolute())} {config.docker['gtdbtk']} gtdbtk classify_wf --genome_dir {str(mags_dir.absolute())} --out_dir {str(output_dir.absolute())} --cpus {cpus}"
+
+    return export_db+cmd
+
+    
 
 
 
