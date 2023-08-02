@@ -6,6 +6,9 @@ class PipelineConfig:
 class StepConfig:
     pass
 
+class TaskConfig:
+    pass
+
 @dataclass  
 class Containers:
     """ This class stores the default containers for the pipelines.
