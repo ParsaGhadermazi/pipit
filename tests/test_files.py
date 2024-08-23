@@ -1,22 +1,18 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from pipit import files  # Replace 'your_module' with the actual module name
+from bioplunger import files
 
-@pytest.fixture
-def mock_path():
-    mock_path = MagicMock(spec=Path)
-    mock_path.glob.return_value = [
+
+@patch("pathlib.Path.rglob")
+def test_group_files(mock_rglob):
+    # Mock the Path object and its methods
+    mock_rglob.return_value = [
         Path("sample1_1.fastq.gz"),
         Path("sample1_2.fastq.gz"),
         Path("sample2_1.fastq.gz"),
         Path("sample2_2.fastq.gz")
     ]
-    return mock_path
-    
-def test_group_files(mock_path):
-    # Mock the Path object and its methods
-    
     
     # Define the parameters
     separator = "_"
@@ -24,28 +20,22 @@ def test_group_files(mock_path):
     extension = ".fastq.gz"
     
     # Call the function
-    result = files.group_files(mock_path, separator, group_on, extension)
+    result = files.group_files("some_file_dir", separator, group_on, extension)
     
     # Define the expected result
     expected_result = {
-        str(Path("sample1_1.fastq.gz").absolute()):1,
-        str(Path("sample1_2.fastq.gz").absolute()):2,
-        str(Path("sample2_1.fastq.gz").absolute()):1,
-        str(Path("sample2_2.fastq.gz").absolute()):2
-
+        1: [str(Path("sample1_1.fastq.gz").absolute()), str(Path("sample2_1.fastq.gz").absolute())],
+        2: [str(Path("sample1_2.fastq.gz").absolute()), str(Path("sample2_2.fastq.gz").absolute())]
     }
     
     # Assert the result
     assert result == expected_result
     
     group_on = [0]
-    result = files.group_files(mock_path, separator, group_on, extension)
+    result = files.group_files("some_file_dir", separator, group_on, extension)
     expected_result = {
-        str(Path("sample1_1.fastq.gz").absolute()):1,
-        str(Path("sample1_2.fastq.gz").absolute()):1,
-        str(Path("sample2_1.fastq.gz").absolute()):2,
-        str(Path("sample2_2.fastq.gz").absolute()):2
-
+        1: [str(Path("sample1_1.fastq.gz").absolute()), str(Path("sample1_2.fastq.gz").absolute())],
+        2: [str(Path("sample2_1.fastq.gz").absolute()), str(Path("sample2_2.fastq.gz").absolute())]
     }
     assert result == expected_result
     
@@ -55,8 +45,7 @@ def test_cat_files_():
            "sample1_2.fastq.gz",
            "sample2_1.fastq.gz",
            "sample2_2.fastq.gz"]
-    command=files.cat_files_(paths, "mered.fastq.gz")
-    assert command=="cat sample1_1.fastq.gz sample1_2.fastq.gz sample2_1.fastq.gz sample2_2.fastq.gz > mered.fastq.gz"
+    command=files.cat_files_(paths, "merged.fastq.gz")
+    assert command==("cat sample1_1.fastq.gz sample1_2.fastq.gz sample2_1.fastq.gz sample2_2.fastq.gz > "+str((Path(paths[0]).parent/"merged.fastq.gz").absolute()))
         
-if __name__ == "__main__":
-    test_cat_files_(mock_path)
+

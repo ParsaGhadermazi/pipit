@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "pipit"
-version = "0.1.0"
+name = "bioplunger"
+version = "0.15"
 description = ""
 authors = ["ParsaGhadermazi <54489047+ParsaGhadermazi@users.noreply.github.com>"]
 
