@@ -1,5 +1,6 @@
 import pathlib
 from typing import Iterable
+import bioplunger.configs as configs
 
 def group_files(path:str,
                 separator:str="_",
@@ -61,11 +62,18 @@ def group_files(path:str,
     
 
         
-def cat_files_(files:Iterable[str],output_name:str)->str:
+def cat_files_(files:Iterable[str],
+               output_name:str,
+               configs:configs.Configs,
+               container:str="none",
+               **kwargs)->str:
     """this function ouputs a command to use cat to concatenate files provided in the input
     
     Args:
         files (Iterable[str]): A list of file addresses to concatenate
+        output_name (str): The name of the output file
+        configs (configs.Configs): The configurationobjet to use
+        container (str): The container to use to run the command: "none","singularity","docker"
     
     Returns:
         str: The path to the concatenated file
@@ -75,7 +83,26 @@ def cat_files_(files:Iterable[str],output_name:str)->str:
         raise ValueError("All files should be in the same directory")
 
     output_path = pathlib.Path(parents[0]) / output_name
-    cat_command = f"cat {' '.join(files)} > {output_path.absolute()}"
+    if container=="none":
+        cat_command = f"cat {' '.join(files)} > {output_path.absolute()}"
+        for key,value in kwargs.items():
+            cat_command = cat_command + f" --{key} {value}"
+    
+    
+    elif container=="docker":
+        mapfiles=" ".join([f"-v {str(pathlib.Path(file).absolute())}:{str(pathlib.Path(file).absolute())}" for file in files])
+        cmd= " ".join([f"{str(pathlib.Path(file).absolute())}" for file in files])
+        cat_command = f"docker run {mapfiles} {configs.docker_container} cat {cmd} > {str(output_path.absolute())}"
+        for key,value in kwargs.items():
+            cat_command = cat_command + f" --{key} {value}"
+    
+    
+    elif container=="singularity":
+        mapfiles=",".join([f"{str(pathlib.Path(file).absolute())}:{str(pathlib.Path(file).absolute())}" for file in files])
+        cmd= " ".join([f"{str(pathlib.Path(file).absolute())}" for file in files])
+        cat_command = f"singularity exec --bind {mapfiles} {configs.singularity_container} cat {cmd} > {str(output_path.absolute())}"
+        for key,value in kwargs.items():
+            cat_command = cat_command + f" --{key} {value}"
     
     return cat_command
 
