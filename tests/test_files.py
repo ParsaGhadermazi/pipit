@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from bioplunger import files
+from bioplumber import files
 
 
 @patch("pathlib.Path.rglob")

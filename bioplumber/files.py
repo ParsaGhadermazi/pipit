@@ -1,6 +1,6 @@
 import pathlib
 from typing import Iterable
-import bioplunger.configs as configs
+import bioplumber.configs as configs
 
 def group_files(path:str,
                 separator:str="_",
@@ -55,7 +55,8 @@ def group_files(path:str,
     
         group_files.setdefault(code_map.setdefault(code,len(code_map)+1),[]).append(str(file.absolute()))
     
-
+    for key in group_files:
+        group_files[key].sort()
         
     return group_files
 
