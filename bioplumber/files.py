@@ -1,7 +1,15 @@
 import pathlib
 from typing import Iterable
 import bioplumber.configs as configs
-
+import requests
+import rich
+from rich.progress import Progress
+import rich
+REFERENCE_GENOMES={
+    "homo_sapiens":"http://igenomes.illumina.com.s3-website-us-east-1.amazonaws.com/Homo_sapiens/UCSC/hg38/Homo_sapiens_UCSC_hg38.tar.gz",
+    "PhiX":"https://webdata.illumina.com/downloads/productfiles/igenomes/phix/PhiX_Illumina_RTA.tar.gz",
+    "Mus musculus (Mouse)":"http://igenomes.illumina.com.s3-website-us-east-1.amazonaws.com/Mus_musculus/Ensembl/GRCm38/Mus_musculus_Ensembl_GRCm38.tar.gz"
+}
 def group_files(path:str,
                 separator:str="_",
                 group_on:Iterable[int]=[0,1],
@@ -109,4 +117,29 @@ def cat_files_(files:Iterable[str],
 
 
 
+def download_url(url:str, output_path:str)->None:
+    """This function downloads a file from a url and saves it to the output path
+    
+    Args:
+        url (str): The url to download the file from
+        output_path (str): The path to save the downloaded file
+    
+    Returns:
+        None
+    """    
+    r = requests.get(url, allow_redirects=True,stream=True,timeout=10)
+     
+    total_size = int(r.headers.get('content-length', 0))
+    block_size = total_size // 1000 + 1  # Progress bar updates every 1%
+    if not pathlib.Path(output_path).parent.exists():
+        pathlib.Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'wb') as f:
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Downloading...", total=total_size)
+            for data in r.iter_content(block_size):
+                f.write(data)
+                progress.update(task, advance=len(data))
+    
+    
+        
         

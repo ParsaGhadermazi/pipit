@@ -1,11 +1,14 @@
 [tool.poetry]
 name = "bioplumber"
-version = "0.17"
+version = "0.30"
 description = ""
 authors = ["ParsaGhadermazi <54489047+ParsaGhadermazi@users.noreply.github.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+requests = "^2.32.3"
+rich = "^13.8.1"
+ipywidgets = "^8.1.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
