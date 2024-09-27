@@ -329,25 +329,25 @@ def get_unmapped_reads_(
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
         if paired:
-            command = f"samtools view -b -f 4 {bam_file} > {outdir}"
-        else:
             command = f"samtools view -b -f 12 -F 256 {bam_file} > {outdir}"
+        else:
+            command = f"samtools view -b -f 4 {bam_file} > {outdir}"
             
     elif container=="docker":
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
         if paired:
-            command = f"docker run -v {bam_file}:{bam_file} -v {outdir}:{outdir} {config.docker_container} samtools view -b -f 4 {bam_file} > {outdir}"
-        else:
             command = f"docker run -v {bam_file}:{bam_file} -v {outdir}:{outdir} {config.docker_container} samtools view -b -f 12 -F 256 {bam_file} > {outdir}"
+        else:
+            command = f"docker run -v {bam_file}:{bam_file} -v {outdir}:{outdir} {config.docker_container} samtools view -b -f 4 {bam_file} > {outdir}"
     
     elif container=="singularity":
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
         if paired:
-            command = f"singularity exec -B {bam_file}:{bam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -b -f 4 {bam_file} > {outdir}"
-        else:
             command = f"singularity exec -B {bam_file}:{bam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -b -f 12 -F 256 {bam_file} > {outdir}"
+        else:
+            command = f"singularity exec -B {bam_file}:{bam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -b -f 4 {bam_file} > {outdir}"
             
     return command
 
@@ -526,7 +526,7 @@ def align_bwa_(
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
-            command = f"bwa mem {database_dir} {read1} > {outdir}"
+            command = f"bwa mem  -t {config.bwa_cpus} {database_dir} {read1} > {outdir}"
             for key,value in kwargs.items():
                 command = command + f" --{key} {value}"
         
@@ -536,7 +536,7 @@ def align_bwa_(
             read2=Path(read2).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
-            command = f"docker run -v {read1}:{read1} -v {read2}:{read2} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bwa mem {database_dir} {read1} {read2} > {outdir}"
+            command = f"docker run -v {read1}:{read1} -v {read2}:{read2} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bwa mem  -t {config.bwa_cpus} {database_dir} {read1} {read2} > {outdir}"
             for key,value in kwargs.items():
                 command = command + f" --{key} {value}"
 
@@ -555,7 +555,7 @@ def align_bwa_(
             read2=Path(read2).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
-            command = f"singularity exec -B {read1}:{read1} -B {read2}:{read2} -B {database_dir}:{database_dir} -B {outdir}:{outdir} {config.singularity_container} bwa mem {database_dir} {read1} {read2} > {outdir}"
+            command = f"singularity exec  {config.singularity_container} bwa mem -t {config.bwa_cpus} {database_dir} {read1} {read2} > {outdir}"
             for key,value in kwargs.items():
                 command = command + f" --{key} {value}"
 
@@ -563,6 +563,9 @@ def align_bwa_(
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
-            command = f"singularity exec -B {read1}:{read1} -B {database_dir}:{database_dir} -B {outdir}:{outdir} {config.singularity_container} bwa mem {database_dir} {read1} > {outdir}"
+            command = f"singularity exec {config.singularity_container} bwa mem -t {config.bwa_cpus} {database_dir} {read1} > {outdir}"
             for key,value in kwargs.items():
                 command = command + f" --{key} {value}"
+                
+    
+    return command

@@ -6,6 +6,8 @@ import json
 class Configs:
     singularity_container:str
     docker_container:str
+    bwa_cpus:int
+    megahit_cpus:int
     
     @classmethod
     def from_dict(cls,dict_:dict):
