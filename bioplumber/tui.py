@@ -10,6 +10,13 @@ from bioplumber import (configs,
                         alignment)
 
 import json
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
+def main():
+    app = Bioplumber()
+    app.run()
 
 class EditableFileViewer(Container):
     """Widget to edit and save the contents of a text file."""
@@ -42,8 +49,10 @@ class EditableFileViewer(Container):
                 self.text_area.insert( f"Error saving file: {e}\n",(0,0), maintain_selection_offset=False)
                 
 class SlurmManager(Container):
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        
     def on_mount(self):
         try:
             data=slurm.query_squeue()
@@ -96,7 +105,7 @@ class Bioplumber(App):
         print(tab_id)
         if tab_id == "st":
             # Add the editable file viewer content
-            container.mount(EditableFileViewer("slurm_template.txt"))  # Replace with your file path
+            container.mount(EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt")))  # Replace with your file path
         elif tab_id == "jm":
             container.mount(SlurmManager())
             
@@ -107,4 +116,4 @@ class Bioplumber(App):
 
 
 if __name__ == "__main__":
-    Bioplumber().run()
+    main()

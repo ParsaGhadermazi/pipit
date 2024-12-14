@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bioplumber"
-version = "0.31"
+version = "0.43"
 description = ""
 authors = ["ParsaGhadermazi <54489047+ParsaGhadermazi@users.noreply.github.com>"]
 
@@ -17,3 +17,6 @@ pytest = "^5.2"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+pipit = 'bioplumber.tui:main'
