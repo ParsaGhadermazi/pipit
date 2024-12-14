@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --job-name=<job_name>
+#SBATCH --partition=<executer>
+#SBATCH --time=10:00:00
+#SBATCH --ntasks=hk>
+#SBATCH --mem=100G
+#SBATCH --output=<sample_outlog>.log
+
+<command>
+
+echo 'Finished running <sample_name>'

@@ -4,7 +4,6 @@ import bioplumber.configs as configs
 import requests
 import rich
 from rich.progress import Progress
-import rich
 REFERENCE_GENOMES={
     "homo_sapiens":"http://igenomes.illumina.com.s3-website-us-east-1.amazonaws.com/Homo_sapiens/UCSC/hg38/Homo_sapiens_UCSC_hg38.tar.gz",
     "PhiX":"https://webdata.illumina.com/downloads/productfiles/igenomes/phix/PhiX_Illumina_RTA.tar.gz",
