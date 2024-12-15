@@ -67,8 +67,6 @@ def group_files(path:str,
         
     return group_files
 
-    
-
         
 def cat_files_(files:Iterable[str],
                output_name:str,

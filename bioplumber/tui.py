@@ -1,6 +1,7 @@
 from textual.app import App
-from textual.widgets import Header, Footer, Tabs,Tab, TextArea, Button
-from textual.containers import Container
+from textual.widget import Widget
+from textual.widgets import Header, Footer, Tabs,Tab, TextArea, Button,DataTable
+from textual.containers import Container,Horizontal,Vertical
 from bioplumber import (configs,
                         bining,
                         files,
@@ -17,6 +18,7 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 def main():
     app = Bioplumber()
     app.run()
+
 
 class EditableFileViewer(Container):
     """Widget to edit and save the contents of a text file."""
@@ -48,6 +50,7 @@ class EditableFileViewer(Container):
             except Exception as e:
                 self.text_area.insert( f"Error saving file: {e}\n",(0,0), maintain_selection_offset=False)
                 
+
 class SlurmManager(Container):
     
     def __init__(self, **kwargs):
@@ -56,20 +59,61 @@ class SlurmManager(Container):
     def on_mount(self):
         try:
             data=slurm.query_squeue()
-            self.mount(TextArea(text=json.dumps(data,indent=4)))
-        except Exception:
-            self.mount(TextArea(text="Make Sure you have access to slurm"))    
+            table=DataTable()
+            table.add_columns(*[i for i in data.keys()])
+            table.add_rows(list(zip(*data.values())))
+            self.mount(table)
+
+        except Exception as e:
+            self.mount(TextArea(text=f"Make sure you have access slurm\nlog:\n{e}"))
     
 class TabManager(Tabs):
     
     def compose(self):
         yield Tabs(
-            Tab("Script Generator", id="sg"),
+            Tab("Input/Output", id="io"),
+            Tab("Script generator", id="sg"),
+            Tab("Slurm template", id="st"),
             Tab("Operation", id="op"),
             Tab("Job monitor", id="jm"),
-            Tab("Slurm template", id="st"),
             id="all_tabs"
         )
+
+class IOManager(Container):
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+    def on_mount(self):
+        
+        self.mount(
+            Vertical(
+                Horizontal(
+                        TextArea.code_editor("#add your functions here below\nimport pandas as pd\nio_table=pd.DataFrame({'col1':[1,2,3],'col2':[4,5,6]})",
+                                             language="python",
+                                             id="io_code_editor"),
+                        DataTable(id="io_table"),
+                        id="io_area"
+                        ),
+                Horizontal(
+                    Button("Render I/O table", id="io_render"),
+                    Button("Submit I/O table", id="io_submit"),
+                    id="io_buttons")
+                    )   
+        )
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "io_render":
+            try:
+                code = self.query_one("#io_code_editor").text
+                exec(code)
+                data = locals()["io_table"].to_dict(orient="list")
+                table = self.query_one("#io_table")
+                table.clear(columns=True)  # Clear the existing data
+                table.add_columns(*[i for i in data.keys()])
+                table.add_rows(list(zip(*data.values())))
+            except Exception as e:
+                self.query_one("#io_table").mount(TextArea(text=f"Error rendering table\n{e}"))
 
 class Bioplumber(App):
     CSS_PATH = "tui_css.tcss"
@@ -108,6 +152,8 @@ class Bioplumber(App):
             container.mount(EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt")))  # Replace with your file path
         elif tab_id == "jm":
             container.mount(SlurmManager())
+        elif tab_id == "io":
+            container.mount(IOManager())
             
         else:
         # Add placeholder content for other tabs
