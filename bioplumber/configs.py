@@ -35,3 +35,10 @@ class Configs:
         import tomli
         with open(toml_file,"w") as f:
             tomli.dump(self.to_dict(),f)
+
+DEFAULT_CONFIGS = Configs(
+    singularity_container="docker://quay.io/biocontainers/megahit:1.2.9--py36h6bb024c_0",
+    docker_container="quay.io/biocontainers/megahit:1.2.9--py36h6bb024c_0",
+    bwa_cpus=1,
+    megahit_cpus=1
+)

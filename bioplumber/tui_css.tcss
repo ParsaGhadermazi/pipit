@@ -6,3 +6,11 @@ Tabs {
 {
     height: 10%;
 }
+#func_panel
+{
+    height: 40%;
+}
+#func_match
+{
+    height: 40%;
+}
