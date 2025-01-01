@@ -96,7 +96,7 @@ class SlurmManager(Container):
             self.mount(table)
 
         except Exception as e:
-            self.mount(TextArea(text=f"Make sure you have access slurm\nlog:\n{e}"))
+            self.mount(Label(f"[bold white]Make sure you have access slurm[red]\nlog:\n[red]{e}"))
     
 class TabManager(Tabs):
     
@@ -111,6 +111,7 @@ class TabManager(Tabs):
         )
 
 class IOManager(Container):
+
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -123,7 +124,8 @@ class IOManager(Container):
                 Horizontal(
                         TextArea.code_editor(editor_text,
                                              language="python",
-                                             id="io_code_editor"),
+                                             id="io_code_editor",
+                                             ),
                         DataTable(id="io_table"),
                         id="io_area"
                         ),
@@ -174,6 +176,10 @@ class IOManager(Container):
                 table=self.query_one("#io_table")
                 table.remove_children()
                 table.mount(TextArea(text=f"Error saving code\n{e}"))
+    
+
+    
+
         
                 
 class FunctionSelector(Container):
@@ -221,13 +227,15 @@ class FunctionSelector(Container):
                 matches=json.loads(code)
                 for k,v in matches.items():
                     mod_name,func_name=k.split("|")
-                    for i in v:
-                        if i not in io_table_data.columns:
-                            raise ValueError(f"{i} not in input/output table")
-                    getattr(eval(mod_name),func_name)(*v)
-                self.mount(Label("[green] All input/output matched with functions successfully!"))
+                    if (set(v.values())-set(io_table_data.keys())):
+                        missing=set(v.values())-set(io_table_data.keys())
+                        raise ValueError(f"All of the inputs must be selected from the IO table {missing}")
+                    for argument in zip(*[io_table_data[j] for _,j in v.items()]):
+                        keyword_arguments=dict(zip(v.keys(),argument))
+                        getattr(eval(mod_name),func_name)(**keyword_arguments)
+                self.mount(Label("[green]All input/output matched with functions successfully!"))
             except Exception as e:
-                self.query_one("#func_match").text="Verification failed\n"+str(e)
+                self.mount(Label("[red]Verification failed\n"+str(e)+"\n"))
         
         elif event.button.id == "save_match":
             global func_match_text
@@ -244,21 +252,32 @@ class FunctionSelector(Container):
                     
                     
                     
-        
+class OperationManager(Container):
+    def __call__(self, *args, **kwds):
+        return super().__call__(*args, **kwds)
+    
+    def on_mount(self):
+        global funcs_tobe_used
+        if funcs_tobe_used is not None:
+            for k,v in funcs_tobe_used:
+                mod_name,func_name=k.split("|")
+                getattr(eval(mod_name),func_name)(*v)
+            self.mount(Label("[green] All input/output matched with functions successfully!"))
+        else:
+            self.mount(Label("[red] No functions to be executed"))
             
         
 
 
 class Bioplumber(App):
     CSS_PATH = "tui_css.tcss"
-    BINDINGS=[
-        ("d", "toggle_dark","Toggle dark mode")
-    ]
+
+    
     def compose(self):
         
         yield Header(show_clock=True)
-        yield TabManager()
-        yield Container(id="tab_contents")
+        yield TabManager(name="tabs")
+        yield Container(name="tab contents",id="tab_contents")
         yield Footer()
  
     def on_mount(self):
@@ -271,10 +290,12 @@ class Bioplumber(App):
             "textual-dark" if self.theme == "textual-light" else "textual-light"
         )
     
+    
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         """Handle tab activation events."""
         tab_id = event.tab.id
         self.load_tab_content(tab_id)
+        
         
     def load_tab_content(self, tab_id: str):
         """Dynamically load content based on the selected tab."""
@@ -296,7 +317,12 @@ class Bioplumber(App):
             
         elif tab_id == "sg":
             container.mount(FunctionSelector(avail_funcs=avail_modules))
+            
+        elif tab_id == "op":
+            container.mount(OperationManager())
     
+
+
 
 
 

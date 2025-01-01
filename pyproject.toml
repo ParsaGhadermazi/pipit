@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bioplumber"
-version = "0.5.1"
+version = "0.5.4"
 description = ""
 authors = ["ParsaGhadermazi <54489047+ParsaGhadermazi@users.noreply.github.com>"]
 
@@ -9,7 +9,7 @@ python = "^3.10"
 requests = "^2.32.3"
 rich = "^13.8.1"
 ipywidgets = "^8.1.5"
-textual = "^0.89.1"
+textual = {version = "1.0.0", extras = ["syntax"]}
 pandas = "^2.2.3"
 
 [tool.poetry.dev-dependencies]
