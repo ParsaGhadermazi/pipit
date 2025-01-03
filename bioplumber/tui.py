@@ -10,7 +10,9 @@ from textual.widgets import (Header,
                              Button,
                              DataTable,
                              Rule,
+                             Input,
                              Static,
+                             Collapsible,
                              SelectionList,
                              Label)
 
@@ -25,11 +27,13 @@ from bioplumber import (configs,
                         assemble,
                         slurm,
                         alignment)
+from textual.validation import Function, Number, ValidationResult, Validator
+import math
 import json
 import os
 import pandas as pd
 import inspect
-
+import pyperclip
 def get_available_functions():
     am=[]
     for module in [bining,files,qc,assemble,alignment]:
@@ -233,7 +237,7 @@ class FunctionSelector(Container):
                     for argument in zip(*[io_table_data[j] for _,j in v.items()]):
                         keyword_arguments=dict(zip(v.keys(),argument))
                         getattr(eval(mod_name),func_name)(**keyword_arguments)
-                self.mount(Label("[green]All input/output matched with functions successfully!"))
+                self.mount(Label("[green]All inputs/outputs matched with functions successfully!"))
             except Exception as e:
                 self.mount(Label("[red]Verification failed\n"+str(e)+"\n"))
         
@@ -243,9 +247,20 @@ class FunctionSelector(Container):
         
         elif event.button.id == "submit_match":
             global funcs_tobe_used
-            func_name={}
             try:
-                funcs_tobe_used=json.loads(self.query_one("#func_match").text).items()
+                cmds=[]
+                code=self.query_one("#func_match").text
+                matches=json.loads(code)
+                cmd_per_chain=len(matches)
+                num_args=pd.DataFrame(io_table_data).shape[0]
+                for r in range(num_args):
+                    for k,v in matches.items():
+                        mod_name,func_name=k.split("|")
+                        keyword_arguments=dict(zip(v.keys(),[io_table_data[j][r] for _,j in v.items()]))
+                        cmds.append(getattr(eval(mod_name),func_name)(**keyword_arguments))
+
+                funcs_tobe_used=[cmds[i:i+cmd_per_chain] for i in range(0,len(cmds),cmd_per_chain)]
+                
                 self.mount(Label("[green] Functions submitted successfully!"))
             except Exception as e:
                 self.mount(Label(f"Error submitting functions\n{e}"))
@@ -253,18 +268,50 @@ class FunctionSelector(Container):
                     
                     
 class OperationManager(Container):
-    def __call__(self, *args, **kwds):
-        return super().__call__(*args, **kwds)
-    
-    def on_mount(self):
+
+    def compose(self):
         global funcs_tobe_used
-        if funcs_tobe_used is not None:
-            for k,v in funcs_tobe_used:
-                mod_name,func_name=k.split("|")
-                getattr(eval(mod_name),func_name)(*v)
-            self.mount(Label("[green] All input/output matched with functions successfully!"))
-        else:
-            self.mount(Label("[red] No functions to be executed"))
+        
+        try:
+            yield Horizontal(
+                Label(f"Number of chains:[bold] {len(funcs_tobe_used)}", id="num_chains"),
+                Label(f"Number of commands per chain:[bold] {len(funcs_tobe_used[0])}", id="num_cmds"),
+                Input(
+                    placeholder="Number of batches",
+                    validators=[
+                Number(minimum=1, maximum=len(funcs_tobe_used))
+            ],
+                    id="num_batches"
+                ),
+                
+            )
+            yield Container(id="batch_area")
+        except Exception as e:
+            yield TextArea(f"Error rendering operations\n{e}")
+    
+    def on_input_changed(self, event: Input.Changed):
+        try:
+            global funcs_tobe_used
+            with open(os.path.join(SCRIPT_DIR,"slurm_template.txt"),"r") as file:
+                slurm_template=file.read()
+            num_batches=int(event.value)
+            self.query_one("#batch_area").remove_children()
+            for i in range(0,len(funcs_tobe_used),math.ceil(len(funcs_tobe_used)/num_batches)):
+                batch=funcs_tobe_used[i:i+math.ceil(len(funcs_tobe_used)/num_batches)]
+                cmds=""
+                for j in batch:
+                    for k in j:
+                        cmds+=k+"\n"
+                slurm_template_=slurm_template.replace("<command>",cmds)
+                self.query_one("#batch_area").mount(Collapsible(Label(f"Batch {i//len(funcs_tobe_used)//num_batches}"),TextArea(slurm_template_)))
+        
+        except Exception as e:
+            self.query_one("#batch_area").remove_children()
+            self.query_one("#batch_area").mount(Label("[red]Number of batches must be a number between 1 and the number of chains\n"+str(e)))
+        
+
+            
+            
             
         
 

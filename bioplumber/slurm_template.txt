@@ -1,8 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=<job_name>
-#SBATCH --partition=<executer>
+#SBATCH --partition=amilan
 #SBATCH --time=10:00:00
-#SBATCH --ntasks=hk>
+#SBATCH --ntasks=10
 #SBATCH --mem=100G
 #SBATCH --output=<sample_outlog>.log
 
