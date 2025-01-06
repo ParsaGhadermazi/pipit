@@ -34,6 +34,9 @@ import os
 import pandas as pd
 import inspect
 import pyperclip
+from dataclasses import dataclass
+import datetime
+import pathlib
 def get_available_functions():
     am=[]
     for module in [bining,files,qc,assemble,alignment]:
@@ -47,14 +50,94 @@ funcs_tobe_used=None
 func_match_text="{}"
 
 io_table_data=None
+
 def main():
     app = Bioplumber()
     app.run()
 
+    
+class Run:
+    
+    def __init__(self,
+                 run_id:str,
+                 project_dir:str,
+                 all_commands:list=list(),
+                 io_table:pd.DataFrame=pd.DataFrame(),
+                 slurm_commands:list=list()
+                 ):
+        self._run_id=run_id
+        self.project_dir=project_dir
+        self.all_commands=all_commands
+        self.io_table=io_table
+        self.slurm_commands=slurm_commands
 
-
-
+    @property
+    def run_id(self):
+        return self._run_id
+    
+    def save_state(self):
+        state={}
+        state["run_id"]=self.run_id
+        state["all_commands"]=self.all_commands
+        state["io_table"]=self.io_table.to_dict()
+        state["slurm_commands"]=self.slurm_commands
+        save_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
+        with open(save_dir,"w") as f:
+            json.dump(state,f)
             
+
+    @classmethod
+    def load_run(self,project_dir:str):
+        file_path=pathlib.Path(project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
+        with open(file_path,"r") as f:
+            state=json.load(file_path)
+        return Run(
+            run_id=state["run_id"],
+            project_dir=project_dir,
+            all_commands=state["all_commands"],
+            io_table=pd.DataFrame.from_dict(state["io_table"]),
+            slurm_commands=state["slurm_commands"]
+        )
+        
+        
+
+class Project:
+    def __init__(self,
+                 name:str,
+                 creator_name:str,
+                 creator_email:str,
+                 description:str,
+                 directory:str,
+                 time_created:datetime.datetime
+                 ):
+        
+        self.name=name
+        self.creator_name=creator_name
+        self.creator_email=creator_email
+        self.description=description
+        self.directory=directory
+        self.time_created=time_created
+        self.runs:list[Run]=[]
+    
+    
+    def add_run(self,run:Run):
+        self.runs.append(run)
+    
+    
+    def generate_report(self):
+        pass
+    
+    @classmethod
+    def load_project(cls,project_dir:str):
+        with open(os.path.join(project_dir,"project_metadata.json"),"r") as f:
+            project_dict=json.load(f)
+        project=cls(**project_dict)
+        run_dir=pathlib.Path(project_dir).joinpath("runs")
+        for run in run_dir.rglob(project_dir,"*.run"):
+            project.add_run(Run.load_run(run))
+        return project
+
+    
 class EditableFileViewer(Container):
     """Widget to edit and save the contents of a text file."""
 
@@ -273,18 +356,18 @@ class OperationManager(Container):
         global funcs_tobe_used
         
         try:
-            yield Horizontal(
-                Label(f"Number of chains:[bold] {len(funcs_tobe_used)}", id="num_chains"),
-                Label(f"Number of commands per chain:[bold] {len(funcs_tobe_used[0])}", id="num_cmds"),
-                Input(
-                    placeholder="Number of batches",
-                    validators=[
-                Number(minimum=1, maximum=len(funcs_tobe_used))
-            ],
-                    id="num_batches"
-                ),
-                
-            )
+            yield Vertical(
+                    Horizontal(
+                            Label(f"Number of chains:[bold] {len(funcs_tobe_used)}", id="num_chains"),
+                            Label(f"Number of commands per chain:[bold] {len(funcs_tobe_used[0])}", id="num_cmds"),id="chain_info"),
+                    Input(
+                            placeholder="Number of batches",
+                            validators=[
+                                        Number(minimum=1, maximum=len(funcs_tobe_used))
+                                        ],
+                        id="num_batches"
+                        ),
+                        )
             yield Container(id="batch_area")
         except Exception as e:
             yield TextArea(f"Error rendering operations\n{e}")
@@ -309,17 +392,92 @@ class OperationManager(Container):
             self.query_one("#batch_area").remove_children()
             self.query_one("#batch_area").mount(Label("[red]Number of batches must be a number between 1 and the number of chains\n"+str(e)))
         
+class NewProject(Screen):
+    def compose(self):
+        yield Vertical(
+            Header(show_clock=True),
+            Container(
+                Vertical(
+                    Input(placeholder="Project Name",id="project_name"),
+                    Input(placeholder="Project Description",id="project_description"),
+                    Input(placeholder="Project Directory",id="project_dir"),
+                    Input(placeholder="Creator Name",id="creator_name"),
+                    Input(placeholder="Creator Email",id="creator_email")
 
+                    ),
+                Button("Create Project",id="create_project")
+                ),
+            Footer(Label("Developed by [bold]Parsa Ghadermazi")))
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "create_project":
+            project_name=self.query_one("#project_name").value
+            project_description=self.query_one("#project_description").value
+            project_dir=self.query_one("#project_dir").value
+            creator_name=self.query_one("#creator_name").value
+            creator_email=self.query_one("#creator_email").value
+            project=Project(name=project_name,
+                            creator_name=creator_name,
+                            creator_email=creator_email,
+                            description=project_description,
+                            directory=project_dir,
+                            time_created=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             
-            
-            
+            if os.path.exists(project_dir):
+                self.app.push_screen(ProjectAlreadyExists(project),"project_already_exists")
+
+            else:
+                os.makedirs(os.path.join(project_dir,"runs"))
+                with open(os.path.join(project_dir,"project_metadata.json"),"w") as f:
+                    json.dump(project.__dict__,f)
+                self.app.push_screen(RunStation(Project),"run_screen")
+        
         
 
 
-class Bioplumber(App):
-    CSS_PATH = "tui_css.tcss"
-
+class WelcomeScreen(Screen):
+    def compose(self):
+        yield Vertical(
+            Header(show_clock=True),
+            Container(
+                Horizontal(
+                    Button("New Project",id="new_project"),
+                    Button("Load Project",id="load_project")
+                    )
+                ),
+            Footer(Label("Developed by [bold]Parsa Ghadermazi")))
     
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "new_project":
+            self.app.push_screen(NewProject(),"new_project")
+        elif event.button.id == "load_project":
+            pass
+                    
+ 
+class ProjectAlreadyExists(Screen):
+    def __init__(self,project:Project):
+        super().__init__()
+        self.project=project
+
+        
+    def compose(self):
+        yield Vertical(
+            Label("[red]Project already exists! Are you sure you want to overwrite it?"),
+            Horizontal(
+                Button("Yes",id="yes_overwrite"),
+                Button("No",id="no_overwrite")
+                )
+            )
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "yes_overwrite":
+            with open(os.path.join(self.project.directory,"project_metadata.json"),"w") as f:
+                        json.dump(self.project.__dict__,f)
+            self.app.push_screen(RunStation(self.project),"run_screen")
+        elif event.button.id == "no_overwrite":
+            self.app.pop_screen()
+
+class RunScreen(Screen):
     def compose(self):
         
         yield Header(show_clock=True)
@@ -331,11 +489,6 @@ class Bioplumber(App):
         """Load initial content for the first tab."""
         self.load_tab_content("io")
         
-    def action_toggle_dark(self) -> None:
-        """An action to toggle dark mode."""
-        self.theme = (
-            "textual-dark" if self.theme == "textual-light" else "textual-light"
-        )
     
     
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
@@ -367,6 +520,61 @@ class Bioplumber(App):
             
         elif tab_id == "op":
             container.mount(OperationManager())
+            
+class RunStation(Screen):
+    
+    def __init__(self,project:Project):
+        super().__init__()
+        self.project=project
+    
+    def compose(self):
+        yield Vertical(
+            Header(show_clock=True),
+            Container(
+                Vertical(
+                    Label(f"Existing Runs in {self.project.name}:"),
+                    ListView(*[ListItem(Static(run.run_id)) for run in self.project.runs],id="run_list"),
+                )
+                ),
+            Container(
+                Vertical(
+                    Label("Create New Run"),
+                    Input(placeholder="Run ID",id="run_id"),
+                    Button("Create Run",id="create_run")
+                    ),
+                Button("Back",id="back"),
+                ))
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "create_run":
+            run_id=self.query_one("#run_id").value
+            run=Run(run_id=run_id,project_dir=self.project.directory)
+            self.project.add_run(run)
+            self.app.push_screen(RunScreen(),"run_screen")
+        elif event.button.id == "back":
+            self.app.pop_screen()
+    
+            
+
+
+class Bioplumber(App):
+    CSS_PATH = "tui_css.tcss"
+    
+    
+    def on_mount(self):
+        self.push_screen(WelcomeScreen(),"welcome_screen" )
+    
+    
+    
+    # def on_button_pressed(self, event: Button.Pressed):
+    #     if event.button.id == "new_project":
+    #         self.push_screen(RunScreen(),"run_screen")
+    #     elif event.button.id == "load_project":
+    #         pass
+        
+
+    
+
     
 
 
