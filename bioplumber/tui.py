@@ -473,11 +473,17 @@ class ProjectAlreadyExists(Screen):
         if event.button.id == "yes_overwrite":
             with open(os.path.join(self.project.directory,"project_metadata.json"),"w") as f:
                         json.dump(self.project.__dict__,f)
+            self.app.pop_screen()
             self.app.push_screen(RunStation(self.project),"run_screen")
         elif event.button.id == "no_overwrite":
             self.app.pop_screen()
 
 class RunScreen(Screen):
+    BINDINGS=[
+        ("ctrl+r","run_menu","Runs menu"),
+        ("ctrl+t","projects_menu","Projects menu"),
+        ("ctrl+w","welcome_menu","Welcome menu")
+    ]
     def compose(self):
         
         yield Header(show_clock=True)
@@ -520,7 +526,19 @@ class RunScreen(Screen):
             
         elif tab_id == "op":
             container.mount(OperationManager())
-            
+    
+    def action_run_menu(self):
+        self.app.pop_screen()
+    
+    def action_projects_menu(self):
+        self.app.pop_screen()
+        self.app.pop_screen()
+        
+    def action_welcome_menu(self):
+        self.app.pop_screen()
+        self.app.pop_screen()
+        self.app.pop_screen()
+        
 class RunStation(Screen):
     
     def __init__(self,project:Project):

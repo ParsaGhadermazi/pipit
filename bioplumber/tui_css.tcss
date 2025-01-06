@@ -39,3 +39,8 @@ Tabs {
 {
     height: 50%;
 }
+
+#tab_contents
+{
+    height: 80%;
+}
