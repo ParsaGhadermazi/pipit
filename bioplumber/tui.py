@@ -421,9 +421,10 @@ class WelcomeScreen(Screen):
                 Horizontal(
                     Button("New Project",id="new_project",classes="buttons"),
                     Button("Load Project",id="load_project",classes="buttons"),
-                    id="welcome_screen_buttons"),id="welcome_screen"
+                    id="welcome_screen_buttons"),
+                id="welcome_screen"
                 ),
-            Footer())
+            Footer(),id="welcome_screen_all")
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "new_project":
@@ -440,11 +441,13 @@ class ProjectAlreadyExists(Screen):
         
     def compose(self):
         yield Vertical(
-            Label("[red]Project already exists! Are you sure you want to overwrite it?"),
+            Static("[bold]Project already exists! Are you sure you want to overwrite it?",id="project_overwrite_question"),
             Horizontal(
                 Button("Yes",id="yes_overwrite"),
-                Button("No",id="no_overwrite")
-                )
+                Button("No",id="no_overwrite"),
+                id="project_overwrite_buttons"
+                ),
+            id="project_overwrite_screen"
             )
     
     def on_button_pressed(self, event: Button.Pressed):
@@ -469,10 +472,7 @@ class RunScreen(Screen):
         self.fs=FunctionSelector(avail_funcs=avail_modules)
         self.om=OperationManager()
         self.io=IOManager(id="io_manager")
-        
-        
-        
-
+    
     def compose(self):
         
         yield Header(show_clock=True)      
@@ -509,13 +509,13 @@ class RunStation(Screen):
             Header(show_clock=True),
             Container(
                 Vertical(
-                    Label(f"Existing Runs in {self.project.name}:"),
+                    Label(f"Existing Runs in {self.project.name}:",id="existing_run_label"),
                     ListView(*[ListItem(Static(run.run_id)) for run in self.project.runs],id="run_list"),
                 )
                 ),
             Container(
                 Vertical(
-                    Label("Create New Run"),
+                    Label("Create New Run", id="create_new_run_label"),
                     Input(placeholder="Run ID",id="run_id"),
                     Button("Create Run",id="create_run")
                     ),
@@ -539,6 +539,7 @@ class Bioplumber(App):
 
     
     def on_mount(self):
+        self.theme="gruvbox"
         self.push_screen(WelcomeScreen(),"welcome_screen" )
     
     
