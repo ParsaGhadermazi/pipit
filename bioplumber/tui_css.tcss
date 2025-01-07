@@ -40,7 +40,27 @@ Tabs {
     height: 50%;
 }
 
-#tab_contents
+#welcome_screen
 {
-    height: 80%;
+    height: 100%;
+    margin: 4 8;
+    background: $panel;
+    padding: 1 2;
+}
+
+.question {
+    text-style: bold;
+    height: 30%;
+    content-align: center top;
+    padding:1 1;
+}
+
+
+#welcome_screen_buttons
+{
+    
+    height: 100%;
+    width: 100%;
+    align: center middle;
+    padding:1 1;
 }

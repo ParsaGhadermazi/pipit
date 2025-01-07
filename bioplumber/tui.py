@@ -14,6 +14,8 @@ from textual.widgets import (Header,
                              Static,
                              Collapsible,
                              SelectionList,
+                              TabbedContent,
+                              TabPane,
                              Label)
 
 from textual.screen import Screen
@@ -33,7 +35,6 @@ import json
 import os
 import pandas as pd
 import inspect
-import pyperclip
 from dataclasses import dataclass
 import datetime
 import pathlib
@@ -136,6 +137,10 @@ class Project:
         for run in run_dir.rglob(project_dir,"*.run"):
             project.add_run(Run.load_run(run))
         return project
+    
+    def save_state(self):
+        with open(os.path.join(self.directory,"project_metadata.json"),"w") as f:
+            json.dump(self.__dict__,f)
 
     
 class EditableFileViewer(Container):
@@ -184,18 +189,7 @@ class SlurmManager(Container):
 
         except Exception as e:
             self.mount(Label(f"[bold white]Make sure you have access slurm[red]\nlog:\n[red]{e}"))
-    
-class TabManager(Tabs):
-    
-    def compose(self):
-        yield Tabs(
-            Tab("Input/Output", id="io"),
-            Tab("Script generator", id="sg"),
-            Tab("Slurm template", id="st"),
-            Tab("Operation", id="op"),
-            Tab("Job monitor", id="jm"),
-            id="all_tabs"
-        )
+
 
 class IOManager(Container):
 
@@ -204,10 +198,10 @@ class IOManager(Container):
         super().__init__(**kwargs)
         self._submitted_io_table = None
         
-    def on_mount(self):
+    def compose(self):
         
-        self.mount(
-            Vertical(
+        
+        yield Vertical(
                 Horizontal(
                         TextArea.code_editor(editor_text,
                                              language="python",
@@ -217,12 +211,11 @@ class IOManager(Container):
                         id="io_area"
                         ),
                 Horizontal(
-                    Button("Save Script", id="io_save"),
                     Button("Render I/O table", id="io_render"),
                     Button("Submit I/O table", id="io_submit"),
                     id="io_buttons")
                     )   
-        )
+        
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "io_render":
@@ -242,7 +235,6 @@ class IOManager(Container):
                 table.mount(TextArea(text=f"Error rendering table\n{e}"))
         
         elif event.button.id == "io_submit":
-            global editor_text
             global io_table_data
             try:
                 code = self.query_one("#io_code_editor").text
@@ -256,19 +248,9 @@ class IOManager(Container):
                 table.remove_children()
                 table.mount(TextArea(text=f"Error submitting table\n{e}"))
         
-        elif event.button.id == "io_save":
-            try:
-                editor_text= self.query_one("#io_code_editor").text
-            except Exception as e:
-                table=self.query_one("#io_table")
-                table.remove_children()
-                table.mount(TextArea(text=f"Error saving code\n{e}"))
-    
 
     
 
-        
-                
 class FunctionSelector(Container):
     def __init__(self,avail_funcs, **kwargs):
         super().__init__(**kwargs)
@@ -286,7 +268,6 @@ class FunctionSelector(Container):
                     Rule(line_style="dashed"),
                     TextArea(text=f"{func_match_text}",id="func_match"),
                     Horizontal(
-                        Button("Save",id="save_match"),
                         Button("Verify",id="verify_match"),
                         Button("Submit",id="submit_match")
                         )
@@ -323,10 +304,6 @@ class FunctionSelector(Container):
                 self.mount(Label("[green]All inputs/outputs matched with functions successfully!"))
             except Exception as e:
                 self.mount(Label("[red]Verification failed\n"+str(e)+"\n"))
-        
-        elif event.button.id == "save_match":
-            global func_match_text
-            func_match_text=self.query_one("#func_match").text
         
         elif event.button.id == "submit_match":
             global funcs_tobe_used
@@ -430,7 +407,7 @@ class NewProject(Screen):
                 os.makedirs(os.path.join(project_dir,"runs"))
                 with open(os.path.join(project_dir,"project_metadata.json"),"w") as f:
                     json.dump(project.__dict__,f)
-                self.app.push_screen(RunStation(Project),"run_screen")
+                self.app.push_screen(RunStation(project),"run_screen")
         
         
 
@@ -440,12 +417,13 @@ class WelcomeScreen(Screen):
         yield Vertical(
             Header(show_clock=True),
             Container(
+                Static("How would you like to proceed?",classes="question"),
                 Horizontal(
-                    Button("New Project",id="new_project"),
-                    Button("Load Project",id="load_project")
-                    )
+                    Button("New Project",id="new_project",classes="buttons"),
+                    Button("Load Project",id="load_project",classes="buttons"),
+                    id="welcome_screen_buttons"),id="welcome_screen"
                 ),
-            Footer(Label("Developed by [bold]Parsa Ghadermazi")))
+            Footer())
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "new_project":
@@ -484,48 +462,29 @@ class RunScreen(Screen):
         ("ctrl+t","projects_menu","Projects menu"),
         ("ctrl+w","welcome_menu","Welcome menu")
     ]
+    def __init__(self):
+        super().__init__()
+        self.ev=EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt"))
+        self.sm=SlurmManager()
+        self.fs=FunctionSelector(avail_funcs=avail_modules)
+        self.om=OperationManager()
+        self.io=IOManager(id="io_manager")
+        
+        
+        
+
     def compose(self):
         
-        yield Header(show_clock=True)
-        yield TabManager(name="tabs")
-        yield Container(name="tab contents",id="tab_contents")
+        yield Header(show_clock=True)      
+        with TabbedContent("Input/Output","Script generator","Operation","Slurm template","Job monitor",id="tabs"):
+                yield self.io
+                yield self.fs
+                yield self.om
+                yield self.ev
+                yield self.sm
         yield Footer()
- 
-    def on_mount(self):
-        """Load initial content for the first tab."""
-        self.load_tab_content("io")
-        
-    
-    
-    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
-        """Handle tab activation events."""
-        tab_id = event.tab.id
-        self.load_tab_content(tab_id)
-        
-        
-    def load_tab_content(self, tab_id: str):
-        """Dynamically load content based on the selected tab."""
-        container = self.query_one("#tab_contents")
-        container.remove_children()
-        print(tab_id)
-        if tab_id == "st":
-            # Add the editable file viewer content
-            container.mount(EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt")))  # Replace with your file path
-        
-        elif tab_id == "jm":
-            container.mount(SlurmManager())
-        
-        elif tab_id == "io":
-            try:
-                container.mount(container.query_one("#io_manager"))
-            except:   
-                container.mount(IOManager(id="io_manager"))
+
             
-        elif tab_id == "sg":
-            container.mount(FunctionSelector(avail_funcs=avail_modules))
-            
-        elif tab_id == "op":
-            container.mount(OperationManager())
     
     def action_run_menu(self):
         self.app.pop_screen()
@@ -577,10 +536,11 @@ class RunStation(Screen):
 
 class Bioplumber(App):
     CSS_PATH = "tui_css.tcss"
-    
+
     
     def on_mount(self):
         self.push_screen(WelcomeScreen(),"welcome_screen" )
+    
     
     
     
