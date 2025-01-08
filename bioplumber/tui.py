@@ -11,6 +11,7 @@ from textual.widgets import (Header,
                              DataTable,
                              Rule,
                              Input,
+                             DirectoryTree,
                              Static,
                              Collapsible,
                              SelectionList,
@@ -38,6 +39,7 @@ import inspect
 from dataclasses import dataclass
 import datetime
 import pathlib
+import shutil
 def get_available_functions():
     am=[]
     for module in [bining,files,qc,assemble,alignment]:
@@ -132,15 +134,15 @@ class Project:
     def load_project(cls,project_dir:str):
         with open(os.path.join(project_dir,"project_metadata.json"),"r") as f:
             project_dict=json.load(f)
-        project=cls(**project_dict)
+        project=cls(**{k:v for k,v in project_dict.items() if k!="runs"})
         run_dir=pathlib.Path(project_dir).joinpath("runs")
-        for run in run_dir.rglob(project_dir,"*.run"):
+        for run in run_dir.rglob("*.run"):
             project.add_run(Run.load_run(run))
         return project
     
     def save_state(self):
         with open(os.path.join(self.directory,"project_metadata.json"),"w") as f:
-            json.dump(self.__dict__,f)
+            json.dump({k:v for k,v in self.__dict__.items() if k!="runs"},f)
 
     
 class EditableFileViewer(Container):
@@ -408,8 +410,38 @@ class NewProject(Screen):
                 with open(os.path.join(project_dir,"project_metadata.json"),"w") as f:
                     json.dump(project.__dict__,f)
                 self.app.push_screen(RunStation(project),"run_screen")
+
         
+class LoadProject(Screen):
+    def compose(self):
+        yield Vertical(
+            Container(
+                Vertical(
+                    Input(placeholder="Base Directory",id="project_dir_input"),
+                    DirectoryTree("/",id="project_dir_tree"),
+                    Button("Load Project",id="load_project")
+                    )))
+
+    def on_input_changed(self, event: Input.Changed):
+        try:
+            self.query_one("#project_dir_tree").path=event.value
+        except Exception as e:
+            pass
+    
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected):
         
+        self.load_dir=event.path
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "load_project":
+            if hasattr(self,"load_dir"):
+                project_dir=self.load_dir
+            else:
+                project_dir=self.query_one("#project_dir_input").value
+            project=Project.load_project(project_dir)
+            self.app.push_screen(RunStation(project),"run_screen")
+            
+            
 
 
 class WelcomeScreen(Screen):
@@ -428,9 +460,9 @@ class WelcomeScreen(Screen):
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "new_project":
-            self.app.push_screen(NewProject(),"new_project")
+            self.app.push_screen(NewProject(),"new_project_screen")
         elif event.button.id == "load_project":
-            pass
+            self.app.push_screen(LoadProject(),"load_project_screen")
                     
  
 class ProjectAlreadyExists(Screen):
@@ -454,6 +486,10 @@ class ProjectAlreadyExists(Screen):
         if event.button.id == "yes_overwrite":
             with open(os.path.join(self.project.directory,"project_metadata.json"),"w") as f:
                         json.dump(self.project.__dict__,f)
+            if os.path.exists(os.path.join(self.project.directory,"runs")):
+                shutil.rmtree(os.path.join(self.project.directory,"runs"))
+                os.makedirs(os.path.join(self.project.directory,"runs"))
+                
             self.app.pop_screen()
             self.app.push_screen(RunStation(self.project),"run_screen")
         elif event.button.id == "no_overwrite":
