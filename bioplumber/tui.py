@@ -40,6 +40,8 @@ from dataclasses import dataclass
 import datetime
 import pathlib
 import shutil
+import time
+
 def get_available_functions():
     am=[]
     for module in [bining,files,qc,assemble,alignment]:
@@ -54,6 +56,8 @@ func_match_text="{}"
 
 io_table_data=None
 
+def process_for_md_table(text):
+    return text.replace("-","_").replace(" ","").lower()
 def main():
     app = Bioplumber()
     app.run()
@@ -64,6 +68,7 @@ class Run:
     def __init__(self,
                  run_id:str,
                  project_dir:str,
+                 date_created:datetime.datetime,
                  all_commands:list=list(),
                  io_table:pd.DataFrame=pd.DataFrame(),
                  slurm_commands:list=list()
@@ -71,8 +76,12 @@ class Run:
         self._run_id=run_id
         self.project_dir=project_dir
         self.all_commands=all_commands
+        self.date_created=date_created
         self.io_table=io_table
         self.slurm_commands=slurm_commands
+        self.io_script=editor_text
+        self.save_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
+        
 
     @property
     def run_id(self):
@@ -83,24 +92,29 @@ class Run:
         state["run_id"]=self.run_id
         state["all_commands"]=self.all_commands
         state["io_table"]=self.io_table.to_dict()
+        state["date_created"]=self.date_created.strftime("%Y-%m-%d %H:%M:%S")
         state["slurm_commands"]=self.slurm_commands
-        save_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
-        with open(save_dir,"w") as f:
+        state["io_script"]=self.io_script
+        os.makedirs(pathlib.Path(self.save_dir).parent,exist_ok=True)
+        with open(self.save_dir,"w") as f:
             json.dump(state,f)
             
 
     @classmethod
-    def load_run(self,project_dir:str):
-        file_path=pathlib.Path(project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
+    def load_run(self,project_dir:str,run_id:str):
+        file_path=pathlib.Path(project_dir).joinpath("runs").joinpath(run_id)/f"{run_id}.run"
         with open(file_path,"r") as f:
-            state=json.load(file_path)
-        return Run(
-            run_id=state["run_id"],
+            state=json.load(f)
+        run=Run(
+            run_id=run_id,
             project_dir=project_dir,
+            date_created=datetime.datetime.strptime(state["date_created"],"%Y-%m-%d %H:%M:%S"),
             all_commands=state["all_commands"],
             io_table=pd.DataFrame.from_dict(state["io_table"]),
             slurm_commands=state["slurm_commands"]
         )
+        run.io_script=state["io_script"]
+        return run
         
         
 
@@ -137,7 +151,7 @@ class Project:
         project=cls(**{k:v for k,v in project_dict.items() if k!="runs"})
         run_dir=pathlib.Path(project_dir).joinpath("runs")
         for run in run_dir.rglob("*.run"):
-            project.add_run(Run.load_run(run))
+            project.add_run(Run.load_run(project.directory,run.name.split(".")[0]))
         return project
     
     def save_state(self):
@@ -145,6 +159,26 @@ class Project:
             json.dump({k:v for k,v in self.__dict__.items() if k!="runs"},f)
 
     
+    def make_markdown_report(self):
+        txt=f"# Project Name: {self.name}\n\n"
+        txt+=f"## Creator: {self.creator_name} ({self.creator_email})\n"
+        txt+=f"## Table of Contents:\n"
+        txt+="- [Time Created](#time_created)\n"
+        txt+="- [Description](#description)\n"
+        txt+="- [Runs](#runs)\n"
+        for run in self.runs:
+            txt+=f"- [{run.run_id}](#{process_for_md_table(run.run_id)})\n"  
+        txt+=f"## Time Created: {self.time_created}\n"
+        txt+="## Description: \n\n"
+        txt+=f"{self.description}\n"
+        txt+="## Runs:\n"
+        for run in self.runs:
+            txt+=f"### {run.run_id}\n"
+            txt+=f"#### Time Created: {run.date_created.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            txt+=f"IOTABLE and command placeholder\n"
+        return txt
+            
+
 class EditableFileViewer(Container):
     """Widget to edit and save the contents of a text file."""
 
@@ -196,16 +230,17 @@ class SlurmManager(Container):
 class IOManager(Container):
 
     
-    def __init__(self, **kwargs):
+    def __init__(self,run:Run, **kwargs):
         super().__init__(**kwargs)
         self._submitted_io_table = None
+        self.run=run
         
     def compose(self):
         
         
         yield Vertical(
                 Horizontal(
-                        TextArea.code_editor(editor_text,
+                        TextArea.code_editor(text=self.run.io_script,
                                              language="python",
                                              id="io_code_editor",
                                              ),
@@ -213,6 +248,7 @@ class IOManager(Container):
                         id="io_area"
                         ),
                 Horizontal(
+                    Button("Save Script", id="save_io_script"),
                     Button("Render I/O table", id="io_render"),
                     Button("Submit I/O table", id="io_submit"),
                     id="io_buttons")
@@ -249,6 +285,16 @@ class IOManager(Container):
                 table=self.query_one("#io_table")
                 table.remove_children()
                 table.mount(TextArea(text=f"Error submitting table\n{e}"))
+        elif event.button.id == "save_io_script":
+            try:
+                code = self.query_one("#io_code_editor").text
+                with open(self.run.save_dir,'r') as f:
+                    state=json.load(f)
+                state["io_script"]=code
+                with open(self.run.save_dir,'w') as f:
+                    json.dump(state,f)
+            except Exception as e:
+                self.mount(TextArea(text=f"Error saving script\n{e}"))
         
 
     
@@ -434,12 +480,19 @@ class LoadProject(Screen):
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "load_project":
-            if hasattr(self,"load_dir"):
-                project_dir=self.load_dir
-            else:
-                project_dir=self.query_one("#project_dir_input").value
-            project=Project.load_project(project_dir)
-            self.app.push_screen(RunStation(project),"run_screen")
+            try:
+                if hasattr(self,"load_dir"):
+                    project_dir=self.load_dir
+                else:
+                    project_dir=self.query_one("#project_dir_input").value
+
+                project=Project.load_project(project_dir)
+                self.app.push_screen(RunStation(project),"run_screen")
+            except Exception as e:
+                if self.query("#project_load_error"):
+                    self.remove_children("#project_load_error")
+                else:
+                    self.mount(Label(f"[red]Selected folder is not a valid project",id="project_load_error"))
             
             
 
@@ -501,13 +554,15 @@ class RunScreen(Screen):
         ("ctrl+t","projects_menu","Projects menu"),
         ("ctrl+w","welcome_menu","Welcome menu")
     ]
-    def __init__(self):
+
+    def __init__(self,run:Run):
         super().__init__()
         self.ev=EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt"))
         self.sm=SlurmManager()
         self.fs=FunctionSelector(avail_funcs=avail_modules)
         self.om=OperationManager()
-        self.io=IOManager(id="io_manager")
+        self.io=IOManager(run,id="io_manager")
+        
     
     def compose(self):
         
@@ -553,7 +608,10 @@ class RunStation(Screen):
                 Vertical(
                     Label("Create New Run", id="create_new_run_label"),
                     Input(placeholder="Run ID",id="run_id"),
-                    Button("Create Run",id="create_run")
+                    Horizontal(Button("Enter Run Station",id="create_run"),
+                               Button("Update Notebook",id="update_notebook")
+                               )
+                    
                     ),
                 Button("Back",id="back"),
                 ))
@@ -561,11 +619,31 @@ class RunStation(Screen):
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "create_run":
             run_id=self.query_one("#run_id").value
-            run=Run(run_id=run_id,project_dir=self.project.directory)
-            self.project.add_run(run)
-            self.app.push_screen(RunScreen(),"run_screen")
+            if run_id=="":
+                self.mount(Label("[red]Run ID cannot be empty!"))
+            else:    
+                if run_id in [run.run_id for run in self.project.runs]:
+                    run=Run.load_run(project_dir=self.project.directory,run_id=run_id)
+                else:
+                    run=Run(run_id=run_id,
+                            project_dir=self.project.directory,
+                            date_created=datetime.datetime.now(),)
+                    run.save_state()
+                    self.project.add_run(run)
+
+                self.app.push_screen(RunScreen(run),"run_screen")
+            
         elif event.button.id == "back":
             self.app.pop_screen()
+        elif event.button.id == "update_notebook":
+            with open(os.path.join(self.project.directory,"project_notebook.md"),"w") as f:
+                f.write(self.project.make_markdown_report())
+    
+    def on_list_view_selected(self, event: ListView.Selected):
+        run_id=event.item.children[0].renderable
+        self.query_one("#run_id").value=run_id
+        
+        
     
             
 
