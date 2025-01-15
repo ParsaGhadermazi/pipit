@@ -17,27 +17,29 @@ Tabs {
 
 #num_chains
 {
+    padding: 1 1;
     width: 30%;
 }
 #num_cmds
 {
+    padding: 1 1;
     width: 30%;
 }
 #chain_info
 {
-    height: 20%;
+    height: 10%;
+    width: 100%;
 }
-
 
 #num_batches
 {
-    width: 20%;
-    height: 20%;
+    width: 30%;
 }
 
 #batch_area
 {
-    height: 50%;
+    height: 80%;
+    overflow: scroll;
 }
 
 WelcomeScreen{
@@ -137,4 +139,38 @@ ProjectAlreadyExists
 {
 
     margin:1 1 1 1;
+}
+.SelectIOpts
+{
+   width: 50%;
+}
+.SelectIOtitles
+{
+    align: center middle;
+    text-align: center ;
+    padding:1 0 0 0;
+    width: 20%;
+}
+#funcargselects
+{
+    height:60% ;
+
+}
+
+#funcarglowbutsett
+{
+align: center middle;
+}
+
+#funcargall
+{
+    align: center middle;
+}
+
+#func_name
+{
+    text-style: bold;
+    content-align: center middle;
+    text-align: center;
+    height: 10%;
 }

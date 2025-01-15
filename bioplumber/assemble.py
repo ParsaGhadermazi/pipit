@@ -32,50 +32,38 @@ def assemble_megahit_(
     
     if container == "none":
         if paired:
-            read1 = str(Path(read1).resolve().absolute())
-            read2 = str(Path(read2).resolve().absolute())
-            output_dir = str(Path(output_dir).resolve().absolute())
             command= f"megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
             for key,value in kwargs.items():
                 key=key.replace("_","-")
                 command+= f" --{key} {value}"
         
         else:
-            read1 = str(Path(read1).resolve().absolute())
-            output_dir = str(Path(output_dir).resolve().absolute())
+  
             command= f"megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
             for key,value in kwargs.items():
                 command+= f" --{key} {value}"
             
     elif container =="docker":
         if paired:
-            read1 = str(Path(read1).resolve().absolute())
-            read2 = str(Path(read2).resolve().absolute())
-            output_dir = str(Path(output_dir).resolve().absolute())
             command= f"docker run -v {output_dir}:{output_dir} -v {read1}:{read1} -v {read2}:{read2} {config.docker_container} megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
             for key,value in kwargs.items():
                 command+= f" --{key} {value}"
 
         else:
-            read1 = str(Path(read1).resolve().absolute())
-            output_dir = str(Path(output_dir).resolve().absolute())
             command= f"docker run -v {output_dir}:{output_dir} -v {read1}:{read1} {config.docker_container} megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
             for key,value in kwargs.items():
                 command+= f" --{key} {value}"
     
     elif container =="singularity":
+        parent_output_dir = str(Path(output_dir).parent)
         if paired:
-            read1 = str(Path(read1).resolve().absolute())
-            read2 = str(Path(read2).resolve().absolute())
-            output_dir = str(Path(output_dir).resolve().absolute())
-            command= f"singularity exec {config.singularity_container} megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
+            command= f"singularity exec --bind {read1}:{read1},{read2}:{read2},{parent_output_dir}:{parent_output_dir} {config.singularity_container} megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
             for key,value in kwargs.items():
                 command+= f" --{key} {value}"
         
         else:
-            read1 = str(Path(read1).resolve().absolute())
-            output_dir = str(Path(output_dir).resolve().absolute())
-            command= f"singularity exec {config.singularity_container} megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
+            
+            command= f"singularity exec --bind {read1}:{read1},{output_dir}:{output_dir} {config.singularity_container} megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
             for key,value in kwargs.items():
                 command+= f" --{key} {value}"
                 
