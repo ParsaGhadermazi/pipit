@@ -50,7 +50,16 @@ def get_available_functions():
     for module in [bining,files,qc,assemble,alignment]:
         am.append((module.__name__,[i for i in dir(module) if i.endswith("_") and not i.startswith("__")]))
     return dict(am)
-        
+    
+    
+class ConfigsEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, configs.Configs):
+            # Return a JSON-compatible dictionary for the object
+            return obj.__dict__
+        # Let the default encoder handle other types
+        return super().default(obj)
+    
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 editor_text="#add your functions here below\nimport pandas as pd\nio_table=pd.DataFrame({'col1':[1,2,3],'col2':[4,5,6]})"
 avail_modules=get_available_functions()
@@ -73,14 +82,13 @@ class Run:
                  project_dir:str,
                  date_created:datetime.datetime,
                  all_commands:list=list(),
-                 io_table:pd.DataFrame=pd.DataFrame(),
                  slurm_commands:list=list()
                  ):
         self._run_id=run_id
         self.project_dir=project_dir
         self.all_commands=all_commands
         self.date_created=date_created
-        self.io_table=io_table
+        self.io_table=pd.DataFrame()
         self.slurm_commands=slurm_commands
         self.io_script=editor_text
         self.save_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
@@ -95,13 +103,14 @@ class Run:
         state={}
         state["run_id"]=self.run_id
         state["all_commands"]=self.all_commands
-        state["io_table"]=self.io_table
         state["date_created"]=self.date_created.strftime("%Y-%m-%d %H:%M:%S")
         state["slurm_commands"]=self.slurm_commands
         state["io_script"]=self.io_script
+        state["func_match_text"]=self.func_match_text
         os.makedirs(pathlib.Path(self.save_dir).parent,exist_ok=True)
         with open(self.save_dir,"w") as f:
-            json.dump(state,f)
+            json.dump(state,f,cls=ConfigsEncoder)
+        
             
 
     @classmethod
@@ -114,11 +123,21 @@ class Run:
             project_dir=project_dir,
             date_created=datetime.datetime.strptime(state["date_created"],"%Y-%m-%d %H:%M:%S"),
             all_commands=state["all_commands"],
-            io_table=pd.DataFrame.from_dict(state["io_table"]),
             slurm_commands=state["slurm_commands"]
         )
         run.io_script=state["io_script"]
-        return run
+        run.func_match_text=state["func_match_text"]
+        return run  
+    
+    def save_io_table(self):
+        io_table_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/"io_table.json"
+        with open(io_table_dir,"w") as f:
+            json.dump(self.io_table,f,cls=ConfigsEncoder)
+    
+    def load_io_table(self):
+        io_table_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/"io_table.json"
+        with open(io_table_dir,"r") as f:
+            self.io_table=pd.DataFrame(json.load(f))
         
         
 
@@ -182,331 +201,28 @@ class Project:
             txt+=f"#### Time Created: {run.date_created.strftime('%Y-%m-%d %H:%M:%S')}\n"
             txt+=f"IOTABLE and command placeholder\n"
         return txt
-            
-class FunctionArgSelector(Screen):
-    def __init__(self,func_name:str,run:Run):
-        super().__init__()
-        self.func_name=func_name
-        self.run=run
-        self.func_args=[i for i in inspect.signature(getattr(eval(func_name.split("|")[0]),func_name.split("|")[1])).parameters if i!="kwargs"]
-        
-        
+
+class WelcomeScreen(Screen):
     def compose(self):
-        
         yield Vertical(
             Header(show_clock=True),
-            Vertical(
-                Label(f"Function: {self.func_name}",id="func_name"),
-                Vertical(
-                    *[Horizontal(Label(argname,classes="SelectIOtitles"),Select(zip(self.run.io_table.keys(),self.run.io_table.keys()),classes="SelectIOpts",id=argname)) for argname in self.func_args ]
-                    ,id="funcargselects"
+            Container(
+                Static("How would you like to proceed?",classes="question"),
+                Horizontal(
+                    Button("New Project",id="new_project",classes="buttons"),
+                    Button("Load Project",id="load_project",classes="buttons"),
+                    id="welcome_screen_buttons"),
+                id="welcome_screen"
                 ),
-                Horizontal(
-                    Button("Add",id="add_arg"),
-                    Button("Back",id="back_arg"),
-                    id="funcarglowbutsett"
-                    ),
-                id="funcargscontainer"
-                ),
-            Footer(),
-            id="funcargall"
-            )
+            Footer(),id="welcome_screen_all")
     
     def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "back_arg":
-            self.app.pop_screen()
-            
-        if event.button.id == "add_arg":
-            try:
-                args={i:self.query_one("#"+i).value for i in self.func_args}
-                self.run.func_match_text[self.func_name]=args
-                self.dismiss()
-            except Exception as e:
-                self.mount(Label(f"[red]Error adding arguments\n{e}"))
-            
-class EditableFileViewer(Container):
-    """Widget to edit and save the contents of a text file."""
-
-    def __init__(self, file_path: str, **kwargs):
-        super().__init__(**kwargs)
-        self.file_path = file_path
-        self.text_area = TextArea(id="slurm_editor")  # Editable area
-        self.save_button = Button("Save", id="save_button")
-        
-    def on_mount(self):
-        """Load the file content into the text area."""
-        self.mount(self.text_area, self.save_button)
-
-        try:
-            with open(self.file_path, "r") as file:
-                content = file.read()
-            self.text_area.text = content
-        except Exception as e:
-            self.text_area.text = f"Error loading file: {e}"
-
-    def on_button_pressed(self, event: Button.Pressed):
-        """Handle save button click."""
-        if event.button.id == "save_button":
-            try:
-                with open(self.file_path, "w") as file:
-                    file.write(self.text_area.text)
-                self.text_area.insert("File saved successfully!\n",(0,0),  maintain_selection_offset=False)
-            except Exception as e:
-                self.text_area.insert( f"Error saving file: {e}\n",(0,0), maintain_selection_offset=False)
-                
-
-class SlurmManager(Container):
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-    def on_mount(self):
-        try:
-            data=slurm.query_squeue()
-            table=DataTable()
-            table.add_columns(*[i for i in data.keys()])
-            table.add_rows(list(zip(*data.values())))
-            self.mount(table)
-
-        except Exception as e:
-            self.mount(Label(f"[bold white]Make sure you have access slurm[red]\nlog:\n[red]{e}"))
-
-class ManageSteps(Container):
-    def compose(self):
-        
-        yield Horizontal(
-                    TextArea(id="step_info",read_only=True),
-                    )
-        
-
-class IOManager(Container):
-
-    
-    def __init__(self,run:Run, **kwargs):
-        super().__init__(**kwargs)
-        self._submitted_io_table = None
-        self.run=run
-        
-    def compose(self):
-        
-        
-        yield Vertical(
-                Horizontal(
-                        TextArea.code_editor(text=self.run.io_script,
-                                             language="python",
-                                             id="io_code_editor",
-                                             ),
-                        DataTable(id="io_table"),
-                        id="io_area"
-                        ),
-                Horizontal(
-                    Button("Save Script", id="save_io_script"),
-                    Button("Render I/O table", id="io_render"),
-                    Button("Submit I/O table", id="io_submit"),
-                    id="io_buttons")
-                    )   
-        
-    
-    def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "io_render":
-            try:
-                code = self.query_one("#io_code_editor").text
-                exec(code)
-                data = locals()["io_table"].to_dict(orient="list")
-                self._temp_data = data.copy()
-                table = self.query_one("#io_table")
-                table.remove_children()
-                table.clear(columns=True)  # Clear the existing data
-                table.add_columns(*[i for i in data.keys()])
-                table.add_rows(list(zip(*data.values())))
-            except Exception as e:
-                table=self.query_one("#io_table")
-                table.remove_children()
-                table.mount(TextArea(text=f"Error rendering table\n{e}"))
-        
-        elif event.button.id == "io_submit":
-            try:
-                code = self.query_one("#io_code_editor").text
-                exec(code)
-                self.run.io_table =locals()["io_table"].to_dict(orient="list")
-                self.run.save_state()
-                table = self.query_one("#io_table")
-                table.remove_children()
-                table.mount(Container(Static("[green]Table submitted successfully!",)))
-            except Exception as e:
-                table=self.query_one("#io_table")
-                table.remove_children()
-                table.mount(TextArea(text=f"Error submitting table\n{e}"))
-        elif event.button.id == "save_io_script":
-            try:
-                code = self.query_one("#io_code_editor").text
-                with open(self.run.save_dir,'r') as f:
-                    state=json.load(f)
-                state["io_script"]=code
-                with open(self.run.save_dir,'w') as f:
-                    json.dump(state,f)
-            except Exception as e:
-                self.mount(TextArea(text=f"Error saving script\n{e}"))
-        
-
-    
-
-class FunctionSelector(Container):
-    def __init__(self,avail_funcs,run:Run, **kwargs):
-        super().__init__(**kwargs)
-        self.avail_funcs=avail_funcs
-        self.run=run
-
-    def compose(self):
-        yield(
-            Vertical(
-                    Horizontal(
-                        ListView(*[ListItem(Static(i+"|"+j)) for i in self.avail_funcs.keys() for j in self.avail_funcs[i]],id="module_list"),
-                        TextArea.code_editor(id="func_display",language="python"),
-                        id="func_panel"
-                        ),
-                    Button("Add Step",id="add_step_button"),
-                    ManageSteps(),
-                    Horizontal(
-                        Button("Verify",id="verify_match"),
-                        Button("Submit",id="submit_match")
-                        ),
-                    
-                    )
-        )
-    
-    def on_list_view_selected(self, event: ListView.Selected):
-        try:
-            mod_func_name= event.item.children[0].renderable.split("|")
-            mod_name=mod_func_name[0]
-            func_name=mod_func_name[1]
-            func_text=inspect.getsource(getattr(eval(mod_name),func_name))
-            self.query_one("#func_display").text=func_text
-            
-            
-        except Exception as e:
-            self.mount(TextArea(text=f"Error displaying function{e}"))
-        
-        
-    @work
-    async def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "verify_match":
-            try:
-                matches=self.run.func_match_text
-                for k,v in matches.items():
-                    mod_name,func_name=k.split("|")
-                    if (set(v.values())-set(self.run.io_table.keys())):
-                        missing=set(v.values())-set(self.run.io_table.keys())
-                        raise ValueError(f"All of the inputs must be selected from the IO table {missing}")
-                    for argument in zip(*[self.run.io_table[j] for _,j in v.items()]):
-                        keyword_arguments=dict(zip(v.keys(),argument))
-                        getattr(eval(mod_name),func_name)(**keyword_arguments)
-                self.mount(Label("[green]All inputs/outputs matched with functions successfully!"))
-            except Exception as e:
-                self.mount(Label("[red]Verification failed\n"+str(e)+"\n"))
-        
-        elif event.button.id == "submit_match":
-            try:
-                cmds=[]
-                matches=self.run.func_match_text
-                cmd_per_chain=len(matches)
-                num_args=pd.DataFrame(self.run.io_table).shape[0]
-                for r in range(num_args):
-                    for k,v in matches.items():
-                        mod_name,func_name=k.split("|")
-                        keyword_arguments=dict(zip(v.keys(),[self.run.io_table[j][r] for _,j in v.items()]))
-                        cmds.append(getattr(eval(mod_name),func_name)(**keyword_arguments))
-
-                self.run.all_commands=[cmds[i:i+cmd_per_chain] for i in range(0,len(cmds),cmd_per_chain)]
-                
-                self.mount(Label("[green] Functions submitted successfully!"))
-            except Exception as e:
-                self.mount(Label(f"Error submitting functions\n{e}"))
-            
-        elif event.button.id == "add_step_button":
-            selected_func=self.query_one("#module_list").highlighted_child
-            if selected_func:
-                await self.app.push_screen_wait(FunctionArgSelector(selected_func.children[0].renderable,self.run))
-                self.query_one("#step_info").remove_children()
-                self.query_one("#step_info").mount(ListView(*[ListItem(Static(f"{k}")) for k,v in self.run.func_match_text.items()]))
-                self.app.query_children("#num_chains").node.renderable=f"Number of chains:[bold] {len(self.run.all_commands)}"
-            
-
-    
-
-                    
-class OperationManager(Container):
-    def __init__(self,run:Run, **kwargs):
-        super().__init__(**kwargs)
-        self.run=run
-
-    def compose(self):
-        
-        try:
-            yield Vertical(
-                    Horizontal(
-                            Label(f"Number of chains:[bold] {len(self.run.all_commands)}", id="num_chains"),
-                            Label(f"Number of commands per chain:[bold] {len(self.run.all_commands[0])}", id="num_cmds"),
-                            Input(
-                          placeholder="Number of batches",
-                          validators=[
-                                      Number(minimum=1, maximum=len(self.run.all_commands)),
-                                     ],
-                            id="num_batches"
-                        ),
-                            id="chain_info"),
-                    
-                    Container(id="batch_area"),
-                    Horizontal(
-                        Button("Save Scripts",id="save_scripts"),
-                        Button("Submit Jobs",id="submit_jobs"),
-                        id="operation_buttons"
-                        ),
-                    
-                    )
-
-            
-        except Exception as e:
-            yield TextArea(f"Error rendering operations\n{e}")
+        if event.button.id == "new_project":
+            self.app.push_screen(NewProject(),"new_project_screen")
+        elif event.button.id == "load_project":
+            self.app.push_screen(LoadProject(),"load_project_screen")
 
 
-    def on_input_changed(self, event: Input.Changed):
-        try:
-            with open(os.path.join(SCRIPT_DIR,"slurm_template.txt"),"r") as file:
-                slurm_template=file.read()
-            num_batches=int(event.value)
-            self.query_one("#batch_area").remove_children()
-            self.run.slurm_commands=[]
-            for i in range(0,len(self.run.all_commands),math.ceil(len(self.run.all_commands)/num_batches)):
-                batch=self.run.all_commands[i:i+math.ceil(len(self.run.all_commands)/num_batches)]
-                cmds=""
-                for j in batch:
-                    for k in j:
-                        cmds+=k+"\n"
-                slurm_template_=slurm_template.replace("<command>",cmds)
-                slurm_template_=slurm_template_.replace("<job_name>",self.run.run_id+f"_batch_{i+1}")
-                self.query_one("#batch_area").mount(Collapsible(Label(f"Batch {i}"),TextArea(slurm_template_),title=f"Batch {i+1}"))
-                self.run.slurm_commands.append(slurm_template_)
-        
-        except Exception as e:
-            self.query_one("#batch_area").remove_children()
-            self.query_one("#batch_area").mount(Label("[red]Number of batches must be a number between 1 and the number of chains\n"+str(e)))
-    
-    def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "save_scripts":
-            try:
-                save_dir=pathlib.Path(self.run.save_dir).parent/"batch_scripts"
-                os.makedirs(save_dir,exist_ok=True)
-                for i,cmd in enumerate(self.run.slurm_commands):
-                    with open(save_dir/f"Batch_{i+1}.batch","w") as f:
-                        f.write(cmd)
-                self.mount(Label("[green]Scripts saved successfully!"))
-            except Exception as e:
-                self.mount(Label(f"[red]Error saving scripts\n{e}"))
-        
-        elif event.button.id == "submit_jobs":
-            pass
-        
 class NewProject(Screen):
     def compose(self):
         yield Vertical(
@@ -584,30 +300,6 @@ class LoadProject(Screen):
                 else:
                     self.mount(Label(f"[red]Selected folder is not a valid project",id="project_load_error"))
             
-            
-
-
-class WelcomeScreen(Screen):
-    def compose(self):
-        yield Vertical(
-            Header(show_clock=True),
-            Container(
-                Static("How would you like to proceed?",classes="question"),
-                Horizontal(
-                    Button("New Project",id="new_project",classes="buttons"),
-                    Button("Load Project",id="load_project",classes="buttons"),
-                    id="welcome_screen_buttons"),
-                id="welcome_screen"
-                ),
-            Footer(),id="welcome_screen_all")
-    
-    def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "new_project":
-            self.app.push_screen(NewProject(),"new_project_screen")
-        elif event.button.id == "load_project":
-            self.app.push_screen(LoadProject(),"load_project_screen")
-                    
- 
 class ProjectAlreadyExists(Screen):
     def __init__(self,project:Project):
         super().__init__()
@@ -638,50 +330,6 @@ class ProjectAlreadyExists(Screen):
         elif event.button.id == "no_overwrite":
             self.app.pop_screen()
 
-class RunScreen(Screen):
-    BINDINGS=[
-        ("ctrl+r","run_menu","Runs menu"),
-        ("ctrl+t","projects_menu","Projects menu"),
-        ("ctrl+w","welcome_menu","Welcome menu")
-    ]
-
-    def __init__(self,run:Run):
-        super().__init__()
-        self.ev=EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt"))
-        self.sm=SlurmManager()
-        self.fs=FunctionSelector(avail_funcs=avail_modules,run=run,id="func_selector")
-        self.om=OperationManager(run,id="operation_manager")
-        self.io=IOManager(run,id="io_manager")
-        self.run=run
-    
-    def compose(self):
-        
-        yield Header(show_clock=True)      
-        with TabbedContent("Input/Output","Script generator","Operation","Slurm template","Job monitor",id="tabs"):
-                yield self.io
-                yield self.fs
-                yield self.om
-                yield self.ev
-                yield self.sm
-        yield Footer()
-    
-    @on(TabbedContent.TabActivated)
-    async def refreshnums(self) -> None:
-        await self.query_one("#operation_manager").recompose()
-            
-
-    def action_run_menu(self):
-        self.app.pop_screen()
-    
-    def action_projects_menu(self):
-        self.app.pop_screen()
-        self.app.pop_screen()
-        
-    def action_welcome_menu(self):
-        self.app.pop_screen()
-        self.app.pop_screen()
-        self.app.pop_screen()
-        
 class RunStation(Screen):
     
     def __init__(self,project:Project):
@@ -735,6 +383,393 @@ class RunStation(Screen):
     def on_list_view_selected(self, event: ListView.Selected):
         run_id=event.item.children[0].renderable
         self.query_one("#run_id").value=run_id
+        
+class RunScreen(Screen):
+    BINDINGS=[
+        ("ctrl+r","run_menu","Runs menu"),
+        ("ctrl+t","projects_menu","Projects menu"),
+        ("ctrl+w","welcome_menu","Welcome menu")
+    ]
+
+    def __init__(self,run:Run):
+        super().__init__()
+        self.ev=EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt"))
+        self.sm=SlurmManager()
+        self.fs=FunctionSelector(avail_funcs=avail_modules,run=run,id="func_selector")
+        self.om=OperationManager(run,id="operation_manager")
+        self.io=IOManager(run,id="io_manager")
+        self.run=run
+    
+    def compose(self):
+        
+        yield Header(show_clock=True)      
+        with TabbedContent("Input/Output","Script generator","Operation","Slurm template","Job monitor",id="tabs"):
+                yield self.io
+                yield self.fs
+                yield self.om
+                yield self.ev
+                yield self.sm
+        yield Footer()
+    
+    @on(TabbedContent.TabActivated)
+    async def refreshnums(self) -> None:
+        await self.query_one("#operation_manager").recompose()
+            
+
+    def action_run_menu(self):
+        self.app.pop_screen()
+    
+    def action_projects_menu(self):
+        self.app.pop_screen()
+        self.app.pop_screen()
+        
+    def action_welcome_menu(self):
+        self.app.pop_screen()
+        self.app.pop_screen()
+        self.app.pop_screen()
+        
+
+class IOManager(Container):
+
+    
+    def __init__(self,run:Run, **kwargs):
+        super().__init__(**kwargs)
+        self._submitted_io_table = None
+        self.run=run
+        
+    def compose(self):
+        
+        
+        yield Vertical(
+                Horizontal(
+                        TextArea.code_editor(text=self.run.io_script,
+                                             language="python",
+                                             id="io_code_editor",
+                                             ),
+                        DataTable(id="io_table"),
+                        id="io_area"
+                        ),
+                Horizontal(
+                    Button("Save Script", id="save_io_script"),
+                    Button("Render I/O table", id="io_render"),
+                    Button("Submit I/O table", id="io_submit"),
+                    Button("Save Table", id="save_table"),
+                    id="io_buttons")
+                    )   
+        
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "io_render":
+            try:
+                code = self.query_one("#io_code_editor").text
+                exec(code)
+                data = locals()["io_table"].to_dict(orient="list")
+                self._temp_data = data.copy()
+                table = self.query_one("#io_table")
+                table.remove_children()
+                table.clear(columns=True)  # Clear the existing data
+                table.add_columns(*[i for i in data.keys()])
+                table.add_rows(list(zip(*data.values())))
+            except Exception as e:
+                table=self.query_one("#io_table")
+                table.remove_children()
+                table.mount(TextArea(text=f"Error rendering table\n{e}"))
+        
+        elif event.button.id == "io_submit":
+            try:
+                code = self.query_one("#io_code_editor").text
+                exec(code)
+                self.run.io_table =locals()["io_table"].to_dict(orient="list")
+                self.run.save_state()
+                table = self.query_one("#io_table")
+                table.remove_children()
+                table.mount(Container(Static("[green]Table submitted successfully!",)))
+            except Exception as e:
+                table=self.query_one("#io_table")
+                table.remove_children()
+                table.mount(TextArea(text=f"Error submitting table\n{e}"))
+        elif event.button.id == "save_io_script":
+            try:
+                code = self.query_one("#io_code_editor").text
+                with open(self.run.save_dir,'r') as f:
+                    state=json.load(f)
+                state["io_script"]=code
+                with open(self.run.save_dir,'w') as f:
+                    json.dump(state,f)
+            except Exception as e:
+                self.mount(TextArea(text=f"Error saving script\n{e}"))
+       
+        elif event.button.id == "save_table":
+            try:
+                self.run.save_io_table()
+                table = self.query_one("#io_table")
+                table.remove_children()
+                table.mount(Container(Static("[green]Table saved successfully!",)))
+            except Exception as e:
+                table=self.query_one("#io_table")
+                table.remove_children()
+                table.mount(TextArea(text=f"Error saving table\n{e}"))
+
+class FunctionArgSelector(Screen):
+    def __init__(self,func_name:str,run:Run):
+        super().__init__()
+        self.func_name=func_name
+        self.run=run
+        self.func_args=[i for i in inspect.signature(getattr(eval(func_name.split("|")[0]),func_name.split("|")[1])).parameters if i!="kwargs"]
+        
+        
+    def compose(self):
+        
+        yield Vertical(
+            Header(show_clock=True),
+            Vertical(
+                Label(f"Function: {self.func_name}",id="func_name"),
+                Vertical(
+                    *[Horizontal(Label(argname,classes="SelectIOtitles"),Select(zip(self.run.io_table.keys(),self.run.io_table.keys()),classes="SelectIOpts",id=argname),classes="optcontainer") for argname in self.func_args ]
+                    ,id="funcargselects"
+                ),
+                Horizontal(
+                    Button("Add",id="add_arg"),
+                    Button("Back",id="back_arg"),
+                    id="funcarglowbutsett"
+                    ),
+                id="funcargscontainer"
+                ),
+            Footer(),
+            id="funcargall"
+            )
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "back_arg":
+            self.app.pop_screen()
+            
+        if event.button.id == "add_arg":
+            try:
+                args={i:self.query_one("#"+i).value for i in self.func_args}
+                self.run.func_match_text[self.func_name]=args
+                self.dismiss()
+            except Exception as e:
+                self.mount(Label(f"[red]Error adding arguments\n{e}"))
+            
+
+                
+
+class FunctionSelector(Container):
+    def __init__(self,avail_funcs,run:Run, **kwargs):
+        super().__init__(**kwargs)
+        self.avail_funcs=avail_funcs
+        self.run=run
+
+    def compose(self):
+        yield(
+            Vertical(
+                    Horizontal(
+                        ListView(*[ListItem(Static(i+"|"+j)) for i in self.avail_funcs.keys() for j in self.avail_funcs[i]],id="module_list"),
+                        TextArea.code_editor(id="func_display",language="python"),
+                        id="func_panel"
+                        ),
+                    Button("Add Step",id="add_step_button"),
+                    ManageSteps(),
+                    Horizontal(
+                        Button("Verify",id="verify_match"),
+                        Button("Submit",id="submit_match")
+                        ),
+                    
+                    )
+        )
+    
+    def on_list_view_selected(self, event: ListView.Selected):
+        try:
+            mod_func_name= event.item.children[0].renderable.split("|")
+            mod_name=mod_func_name[0]
+            func_name=mod_func_name[1]
+            func_text=inspect.getsource(getattr(eval(mod_name),func_name))
+            self.query_one("#func_display").text=func_text
+            
+            
+        except Exception as e:
+            self.mount(TextArea(text=f"Error displaying function{e}"))
+        
+        
+    @work
+    async def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "verify_match":
+            try:
+                matches=self.run.func_match_text
+                for k,v in matches.items():
+                    mod_name,func_name=k.split("|")
+                    if (set(v.values())-set(self.run.io_table.keys())):
+                        missing=set(v.values())-set(self.run.io_table.keys())
+                        raise ValueError(f"All of the inputs must be selected from the IO table {missing}")
+                    for argument in zip(*[self.run.io_table[j] for _,j in v.items()]):
+                        keyword_arguments=dict(zip(v.keys(),argument))
+                        getattr(eval(mod_name),func_name)(**keyword_arguments)
+                self.mount(Label("[green]All inputs/outputs matched with functions successfully!"))
+            except Exception as e:
+                self.mount(Label("[red]Verification failed\n"+str(e)+"\n"))
+        
+        elif event.button.id == "submit_match":
+            try:
+                cmds=[]
+                matches=self.run.func_match_text
+                cmd_per_chain=len(matches)
+                num_args=pd.DataFrame(self.run.io_table).shape[0]
+                for r in range(num_args):
+                    for k,v in matches.items():
+                        mod_name,func_name=k.split("|")
+                        keyword_arguments=dict(zip(v.keys(),[self.run.io_table[j][r] for _,j in v.items()]))
+                        cmds.append(getattr(eval(mod_name),func_name)(**keyword_arguments))
+
+                self.run.all_commands=[cmds[i:i+cmd_per_chain] for i in range(0,len(cmds),cmd_per_chain)]
+                self.run.save_state()
+                
+                self.mount(Label("[green] Functions submitted successfully!"))
+            except Exception as e:
+                self.mount(Label(f"Error submitting functions\n{e}"))
+            
+        elif event.button.id == "add_step_button":
+            selected_func=self.query_one("#module_list").highlighted_child
+            if selected_func:
+                await self.app.push_screen_wait(FunctionArgSelector(selected_func.children[0].renderable,self.run))
+                self.query_one("#step_info").remove_children()
+                self.query_one("#step_info").mount(ListView(*[ListItem(Static(f"{k}")) for k,v in self.run.func_match_text.items()]))
+                self.app.query_children("#num_chains").node.renderable=f"Number of chains:[bold] {len(self.run.all_commands)}"
+
+class EditableFileViewer(Container):
+    """Widget to edit and save the contents of a text file."""
+
+    def __init__(self, file_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.file_path = file_path
+        self.text_area = TextArea(id="slurm_editor")  # Editable area
+        self.save_button = Button("Save", id="save_button")
+        
+    def on_mount(self):
+        """Load the file content into the text area."""
+        self.mount(self.text_area, self.save_button)
+
+        try:
+            with open(self.file_path, "r") as file:
+                content = file.read()
+            self.text_area.text = content
+        except Exception as e:
+            self.text_area.text = f"Error loading file: {e}"
+
+    def on_button_pressed(self, event: Button.Pressed):
+        """Handle save button click."""
+        if event.button.id == "save_button":
+            try:
+                with open(self.file_path, "w") as file:
+                    file.write(self.text_area.text)
+                self.text_area.insert("File saved successfully!\n",(0,0),  maintain_selection_offset=False)
+            except Exception as e:
+                self.text_area.insert( f"Error saving file: {e}\n",(0,0), maintain_selection_offset=False)
+
+class OperationManager(Container):
+    def __init__(self,run:Run, **kwargs):
+        super().__init__(**kwargs)
+        self.run=run
+
+    def compose(self):
+        
+        try:
+            yield Vertical(
+                    Horizontal(
+                            Label(f"Number of chains:[bold] {len(self.run.all_commands)}", id="num_chains"),
+                            Label(f"Number of commands per chain:[bold] {len(self.run.all_commands[0])}", id="num_cmds"),
+                            Input(
+                          placeholder="Number of batches",
+                          validators=[
+                                      Number(minimum=1, maximum=len(self.run.all_commands)),
+                                     ],
+                            id="num_batches"
+                        ),
+                            id="chain_info"),
+                    
+                    Container(id="batch_area"),
+                    Horizontal(
+                        Button("Save Scripts",id="save_scripts"),
+                        Button("Submit Jobs",id="submit_jobs"),
+                        id="operation_buttons"
+                        ),
+                    
+                    )
+
+            
+        except Exception as e:
+            yield TextArea(f"Error rendering operations\n{e}")
+
+
+    def on_input_changed(self, event: Input.Changed):
+        try:
+            with open(os.path.join(SCRIPT_DIR,"slurm_template.txt"),"r") as file:
+                slurm_template=file.read()
+            num_batches=int(event.value)
+            self.query_one("#batch_area").remove_children()
+            self.run.slurm_commands=[]
+            for i in range(0,len(self.run.all_commands),math.ceil(len(self.run.all_commands)/num_batches)):
+                batch=self.run.all_commands[i:i+math.ceil(len(self.run.all_commands)/num_batches)]
+                cmds=""
+                for j in batch:
+                    for k in j:
+                        cmds+=k+"\n"
+                slurm_template_=slurm_template.replace("<command>",cmds)
+                slurm_template_=slurm_template_.replace("<job_name>",self.run.run_id+f"_batch_{i+1}")
+                self.query_one("#batch_area").mount(Collapsible(Label(f"Batch {i}"),TextArea(slurm_template_),title=f"Batch {i+1}"))
+                self.run.slurm_commands.append(slurm_template_)
+        
+        except Exception as e:
+            self.query_one("#batch_area").remove_children()
+            self.query_one("#batch_area").mount(Label("[red]Number of batches must be a number between 1 and the number of chains\n"+str(e)))
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "save_scripts":
+            try:
+                save_dir=pathlib.Path(self.run.save_dir).parent/"batch_scripts"
+                os.makedirs(save_dir,exist_ok=True)
+                for i,cmd in enumerate(self.run.slurm_commands):
+                    with open(save_dir/f"Batch_{i+1}.batch","w") as f:
+                        f.write(cmd)
+                self.mount(Label("[green]Scripts saved successfully!"))
+            except Exception as e:
+                self.mount(Label(f"[red]Error saving scripts\n{e}"))
+        
+        elif event.button.id == "submit_jobs":
+            pass
+        
+
+               
+class SlurmManager(Container):
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+    def on_mount(self):
+        try:
+            data=slurm.query_squeue()
+            table=DataTable()
+            table.add_columns(*[i for i in data.keys()])
+            table.add_rows(list(zip(*data.values())))
+            self.mount(table)
+
+        except Exception as e:
+            self.mount(Label(f"[bold white]Make sure you have access slurm[red]\nlog:\n[red]{e}"))
+
+class ManageSteps(Container):
+    def compose(self):
+        
+        yield Horizontal(
+                    TextArea(id="step_info",read_only=True),
+                    )
+        
+
+            
+
+    
+
+                    
+
+
         
         
     

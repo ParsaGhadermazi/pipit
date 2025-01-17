@@ -374,7 +374,7 @@ def sort_bam_(
     if container=="none":
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
-        command = f"samtools sort -n"
+        command = f"samtools sort -n "
         for key,value in kwargs.items():
             command = command + f" -{key} {value}"
         

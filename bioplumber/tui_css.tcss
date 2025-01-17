@@ -4,7 +4,7 @@ Tabs {
 
 #io_buttons
 {
-    height: 10%;
+    height: 3;
 }
 #func_panel
 {
@@ -48,8 +48,8 @@ WelcomeScreen{
 
 #welcome_screen
 {
-    height: 35%;
-    width: 40%;
+    height: 15;
+    width: 40;
     align: center middle;
     background: $panel;
     border: solid $secondary;
@@ -71,7 +71,7 @@ WelcomeScreen{
 
 #welcome_screen_buttons
 {
-    
+    padding: 2 0 0 0;
     height: 100%;
     width: 100%;
     align-horizontal: center  ;
@@ -144,33 +144,47 @@ ProjectAlreadyExists
 {
    width: 50%;
 }
+.optcontainer
+{
+    
+    padding:0 0 0 0;
+    margin:0 0 0 0;
+    height:3;
+
+}
 .SelectIOtitles
 {
     align: center middle;
     text-align: center ;
     padding:1 0 0 0;
-    width: 20%;
+    width: 25%;
 }
-#funcargselects
-{
-    height:60% ;
 
-}
 
 #funcarglowbutsett
 {
 align: center middle;
 }
 
-#funcargall
-{
-    align: center middle;
-}
 
 #func_name
 {
+    width:100%;
+    content-align: center middle;
+    padding:1 0 0 0;
     text-style: bold;
+}
+#funcargselects
+{
+    width: 100%;
+    height: 60%;
+    content-align: center middle;
+    padding:1 0 0 0;
+    overflow-y: scroll;
+}
+
+#funcargscontainer
+{
     content-align: center middle;
     text-align: center;
-    height: 10%;
 }
