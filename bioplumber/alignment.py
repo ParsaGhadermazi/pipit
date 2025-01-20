@@ -34,7 +34,8 @@ def index_bowtie_(
     elif container=="singularity":
         sequence_dir=Path(sequence_dir).absolute()
         database_dir=Path(database_dir).absolute()
-        command = f"singularity exec {configs.singularity_container} bowtie2-build {sequence_dir} {database_dir}"
+        database_dir_parent=Path(database_dir).parent
+        command = f"singularity exec {configs.singularity_container} --bind {sequence_dir}:{sequence_dir},{database_dir_parent}:{database_dir_parent} bowtie2-build {sequence_dir} {database_dir}"
         for key,value in kwargs.items():
             command = command + f" --{key} {value}"
     
@@ -110,7 +111,8 @@ def align_bowtie_(
             read2=Path(read2).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
-            command = f"singularity exec -B {read1}:{read1} -B {read2}:{read2} -B {database_dir}:{database_dir} -B {outdir}:{outdir} {config.singularity_container} bowtie2 -x {database_dir} -1 {read1} -2 {read2} -S {outdir}"
+            outdir_parent=Path(outdir).parent
+            command = f"singularity exec -B {read1}:{read1} -B {read2}:{read2} -B {database_dir}:{database_dir} -B {outdir_parent}:{outdir_parent} {config.singularity_container} bowtie2 -x {database_dir} -1 {read1} -2 {read2} -S {outdir}"
             for key,value in kwargs.items():
                 command = command + f" --{key} {value}"
 
@@ -118,7 +120,8 @@ def align_bowtie_(
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
-            command = f"singularity exec -B {read1}:{read1} -B {database_dir}:{database_dir} -B {outdir}:{outdir} {config.singularity_container} bowtie2 -x {database_dir} -U {read1} -S {outdir}"
+            outdir_parent=Path(outdir).parent
+            command = f"singularity exec -B {read1}:{read1} -B {database_dir}:{database_dir} -B {outdir_parent}:{outdir_parent} {config.singularity_container} bowtie2 -x {database_dir} -U {read1} -S {outdir}"
             for key,value in kwargs.items():
                 command = command + f" --{key} {value}"
     
@@ -240,17 +243,18 @@ def convert_sam_bam_(
     if container=="none":
         sam_file=Path(sam_file).absolute()
         outdir=Path(outdir).absolute()
-        command = f"samtools view -bS {sam_file}| samtools sort -o {outdir}"
+        command = f"samtools view -bS {sam_file} > {outdir}"
         
     elif container=="docker":
         sam_file=Path(sam_file).absolute()
         outdir=Path(outdir).absolute()
-        command = f"docker run -v {sam_file}:{sam_file} -v {outdir}:{outdir} {config.docker_container} samtools view -bS {sam_file}| samtools sort -o {outdir}"
+        command = f"docker run -v {sam_file}:{sam_file} -v {outdir}:{outdir} {config.docker_container} samtools view -bS {sam_file} > {outdir}"
     
     elif container=="singularity":
         sam_file=Path(sam_file).absolute()
         outdir=Path(outdir).absolute()
-        command = f"singularity exec -B {sam_file}:{sam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -bS {sam_file}| samtools sort -o {outdir}"
+        outdir_parent=Path(outdir).parent
+        command = f"singularity exec -B {sam_file}:{sam_file} -B {outdir_parent}:{outdir_parent} {config.singularity_container} samtools view -bS {sam_file} > {outdir}"
         
     return command
 
@@ -376,25 +380,26 @@ def sort_bam_(
         outdir=Path(outdir).absolute()
         command = f"samtools sort -n "
         for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+            command = command + f" -{key} {value} "
         
         command = command + f"{bam_file} -o {outdir}"
     
     elif container=="docker":
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
-        command = f"docker run -v {bam_file}:{bam_file} -v {outdir}:{outdir} {config.docker_container} samtools sort -n"
+        command = f"docker run -v {bam_file}:{bam_file} -v {outdir}:{outdir} {config.docker_container} samtools sort -n "
         for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+            command = command + f" -{key} {value} "
         
         command = command + f"{bam_file} -o {outdir}"
     
     elif container=="singularity":
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
-        command = f"singularity exec {config.singularity_container} samtools sort -n"
+        outdir_parent=Path(outdir).parent
+        command = f"singularity exec --bind {bam_file}:{bam_file},{outdir_parent}:{outdir_parent}  {config.singularity_container} samtools sort -n "
         for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+            command = command + f" -{key} {value} "
         
         command = command + f"{bam_file} -o {outdir}"
     

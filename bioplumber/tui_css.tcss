@@ -8,7 +8,7 @@ Tabs {
 }
 #func_panel
 {
-    height: 40%;
+    height: 50%;
 }
 #func_match
 {
@@ -187,4 +187,14 @@ align: center middle;
 {
     content-align: center middle;
     text-align: center;
+}
+
+#func_manage_buttons
+{
+    height:3;
+}
+
+#func_select_buttons
+{
+    height:3;
 }

@@ -2,38 +2,34 @@ from textual.app import App
 from textual.widget import Widget
 from textual.widgets import (Header,
                              Footer,
-                             Tabs,
-                             Tab,
                              ListItem,
                              ListView,
                              TextArea,
                              Button,
                              DataTable,
-                             Pretty,
                              Input,
                              DirectoryTree,
                              Static,
                              Collapsible,
                              Select,
-                             SelectionList,
                               TabbedContent,
-                              TabPane,
                              Label)
 
 from textual.screen import Screen
 import bioplumber
 from textual.widgets.selection_list import Selection
-from textual.containers import Container,Horizontal,Vertical,Grid
+from textual.containers import Container,Horizontal,Vertical
 from bioplumber import (configs,
                         bining,
                         files,
                         qc,
                         assemble,
                         slurm,
+                        taxonomy,
                         alignment)
 from textual import on, work
 
-from textual.validation import Function, Number, ValidationResult, Validator
+from textual.validation import Number
 import math
 import json
 import os
@@ -47,7 +43,7 @@ import time
 
 def get_available_functions():
     am=[]
-    for module in [bining,files,qc,assemble,alignment]:
+    for module in [bining,files,qc,assemble,alignment,taxonomy]:
         am.append((module.__name__,[i for i in dir(module) if i.endswith("_") and not i.startswith("__")]))
     return dict(am)
     
@@ -394,7 +390,7 @@ class RunScreen(Screen):
     def __init__(self,run:Run):
         super().__init__()
         self.ev=EditableFileViewer(os.path.join(SCRIPT_DIR,"slurm_template.txt"))
-        self.sm=SlurmManager()
+        self.sm=SlurmManager(id="slurm_manager")
         self.fs=FunctionSelector(avail_funcs=avail_modules,run=run,id="func_selector")
         self.om=OperationManager(run,id="operation_manager")
         self.io=IOManager(run,id="io_manager")
@@ -403,18 +399,24 @@ class RunScreen(Screen):
     def compose(self):
         
         yield Header(show_clock=True)      
-        with TabbedContent("Input/Output","Script generator","Operation","Slurm template","Job monitor",id="tabs"):
+        with TabbedContent("Input/Output","Script generator","Slurm template","Operation","Job monitor",id="tabs"):
                 yield self.io
                 yield self.fs
-                yield self.om
                 yield self.ev
+                yield self.om
                 yield self.sm
         yield Footer()
     
-    @on(TabbedContent.TabActivated)
-    async def refreshnums(self) -> None:
+    @on(TabbedContent.TabActivated,"#tab-4")
+    async def refreshopmgr(self) -> None:
         await self.query_one("#operation_manager").recompose()
-            
+
+    @on(TabbedContent.TabActivated)
+    def refreshslurm(self) -> None:
+        self.query_one("#slurm_manager").remove_children()
+        self.query_one("#slurm_manager").mount(SlurmManager())
+        
+        
 
     def action_run_menu(self):
         self.app.pop_screen()
@@ -568,11 +570,12 @@ class FunctionSelector(Container):
                         TextArea.code_editor(id="func_display",language="python"),
                         id="func_panel"
                         ),
-                    Button("Add Step",id="add_step_button"),
+                    Horizontal(Button("Add Step",id="add_step_button"),Button("Delete Step",id="delete_step_button"),id="func_manage_buttons"),
                     ManageSteps(),
                     Horizontal(
                         Button("Verify",id="verify_match"),
-                        Button("Submit",id="submit_match")
+                        Button("Submit",id="submit_match"),
+                        id="func_select_buttons"
                         ),
                     
                     )
@@ -634,6 +637,17 @@ class FunctionSelector(Container):
                 self.query_one("#step_info").remove_children()
                 self.query_one("#step_info").mount(ListView(*[ListItem(Static(f"{k}")) for k,v in self.run.func_match_text.items()]))
                 self.app.query_children("#num_chains").node.renderable=f"Number of chains:[bold] {len(self.run.all_commands)}"
+        
+        elif event.button.id == "delete_step_button":
+            try:
+                selected_function=self.query_one("#step_info").children[0].highlighted_child.children[0].renderable
+                del self.run.func_match_text[selected_function]
+                self.query_one("#step_info").remove_children()
+                self.query_one("#step_info").mount(ListView(*[ListItem(Static(f"{k}")) for k,v in self.run.func_match_text.items()]))                
+                self.mount(Label("[green]Step deleted successfully!"))
+            except Exception as e:
+                self.mount(Label(f"[red]Error deleting step {e}"))
+
 
 class EditableFileViewer(Container):
     """Widget to edit and save the contents of a text file."""
@@ -661,9 +675,9 @@ class EditableFileViewer(Container):
             try:
                 with open(self.file_path, "w") as file:
                     file.write(self.text_area.text)
-                self.text_area.insert("File saved successfully!\n",(0,0),  maintain_selection_offset=False)
+                self.mount(Label("[green]File saved successfully!"))
             except Exception as e:
-                self.text_area.insert( f"Error saving file: {e}\n",(0,0), maintain_selection_offset=False)
+                self.mount(Label(f"[red]Error saving file: {e}"))
 
 class OperationManager(Container):
     def __init__(self,run:Run, **kwargs):
@@ -759,7 +773,7 @@ class ManageSteps(Container):
     def compose(self):
         
         yield Horizontal(
-                    TextArea(id="step_info",read_only=True),
+                    Container(id="step_info"),
                     )
         
 

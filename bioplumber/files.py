@@ -136,7 +136,95 @@ def download_url(url:str, output_path:str)->None:
             for data in r.iter_content(block_size):
                 f.write(data)
                 progress.update(task, advance=len(data))
+                
+def download_wget_(
+    url:str,
+    output_dir:str,
+    configs:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """This function will return the script to download a file from a url using wget.
+    
+    Args:
+    url (str): The url to download the file from.
+    output_dir (str): The path to the output directory.
+    configs (configs.Configs): The configuration object.
+    container (str): The container to use. Default is "none".
+    
+    Returns:
+    str: The script to download the file from a url using wget.
+    
+    """
+    output_dir = str(pathlib.Path(output_dir).absolute())
+    if not pathlib.Path(output_dir).exists():
+        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    
+    if container == "none":
+        command = f"wget -P {output_dir} {url}"
+        for key,value in kwargs.items():
+            command = command + f" -{key} {value}"
+    
+    elif container == "docker":
+        command = f"docker run -v {output_dir}:{output_dir} {configs.docker_container} wget -P {output_dir} {url}"
+        for key,value in kwargs.items():
+            command = command + f" -{key} {value}"
+    
+    elif container == "singularity":
+        command = f"singularity exec --bind {output_dir}:{output_dir} {configs.singularity_container} wget -P {output_dir} {url}"
+        for key,value in kwargs.items():
+            command = command + f" -{key} {value}"
+    
+    else:
+        raise ValueError("Invalid container")
+    
+    return command
     
     
-        
-        
+def extract_tar_(
+    tar_file:str,
+    output_dir:str,
+    configs:configs.Configs,
+    container:str="none",
+    args:str="xvzf",
+    **kwargs
+    )->str:
+    """This function will return the script to extract a tar file.
+    
+    Args:
+    tar_file (str): The path to the tar file.
+    output_dir (str): The path to the output directory.
+    configs (configs.Configs): The configuration object.
+    container (str): The container to use. Default is "none".
+    
+    Returns:
+    str: The script to extract a tar file.
+    
+    """
+    tar_file = str(pathlib.Path(tar_file).absolute())
+    output_dir = str(pathlib.Path(output_dir).absolute())
+    if not pathlib.Path(output_dir).exists():
+        pathlib.Path(output_dir).mkdir(parents=True, exist_ok=True)
+    
+    if container == "none":
+        command= f"tar {args} {tar_file} -C {output_dir}"
+        for key,value in kwargs.items():
+            command = command + f" -{key} {value}"
+    
+    elif container == "docker":
+        command= f"docker run -v {output_dir}:{output_dir} -v {tar_file}:{tar_file} {configs.docker_container} tar {args} {tar_file} -C {output_dir}"
+        for key,value in kwargs.items():
+            command = command + f" -{key} {value}"
+    
+    elif container == "singularity":
+        bindpath = ",".join(set([tar_file+":"+tar_file,output_dir+":"+output_dir]))
+        command= f"singularity exec --bind {bindpath}  {configs.singularity_container} tar {args} {tar_file} -C {output_dir}"
+        for key,value in kwargs.items():
+            command = command + f" -{key} {value}"
+            
+    else:
+        raise ValueError("Invalid container")
+    
+
+    
+    return command

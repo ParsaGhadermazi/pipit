@@ -6,8 +6,8 @@ import json
 class Configs:
     singularity_container:str
     docker_container:str
-    bwa_cpus:int
-    megahit_cpus:int
+    gtdb_tk_db_url:str="https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/auxillary_files/gtdbtk_package/full_package/gtdbtk_data.tar.gz"
+    gtdb_local_db_dir:str="NA"
     
     @classmethod
     def from_dict(cls,dictionary:dict):
@@ -18,9 +18,7 @@ class Configs:
         
 
 DEFAULT_CONFIGS = Configs(
-    singularity_container="docker://quay.io/biocontainers/megahit:1.2.9--py36h6bb024c_0",
-    docker_container="quay.io/biocontainers/megahit:1.2.9--py36h6bb024c_0",
-    bwa_cpus=1,
-    megahit_cpus=1
+    singularity_container="",
+    docker_container="",
 )
 
