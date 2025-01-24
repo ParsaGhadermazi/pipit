@@ -228,3 +228,18 @@ def extract_tar_(
 
     
     return command
+
+def make_dir_(
+    directory:str,
+    )->str:
+    """This function will return the script to make a directory.
+    
+    Args:
+    directory (str): The path to the directory.
+    
+    Returns:
+    str: The script to make a directory.
+    
+    """
+    directory = str(pathlib.Path(directory).absolute())
+    return f"mkdir -p {directory}"

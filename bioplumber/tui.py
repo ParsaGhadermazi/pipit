@@ -25,6 +25,7 @@ from bioplumber import (configs,
                         qc,
                         assemble,
                         slurm,
+                        abundance,
                         taxonomy,
                         alignment)
 from textual import on, work
@@ -43,7 +44,7 @@ import time
 
 def get_available_functions():
     am=[]
-    for module in [bining,files,qc,assemble,alignment,taxonomy]:
+    for module in [bining,files,qc,assemble,alignment,taxonomy,abundance]:
         am.append((module.__name__,[i for i in dir(module) if i.endswith("_") and not i.startswith("__")]))
     return dict(am)
     
@@ -51,9 +52,7 @@ def get_available_functions():
 class ConfigsEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, configs.Configs):
-            # Return a JSON-compatible dictionary for the object
             return obj.__dict__
-        # Let the default encoder handle other types
         return super().default(obj)
     
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -89,6 +88,7 @@ class Run:
         self.io_script=editor_text
         self.save_dir=pathlib.Path(self.project_dir).joinpath("runs").joinpath(self.run_id)/f"{self.run_id}.run"
         self.func_match_text={}
+        self.notes={}
         
 
     @property
@@ -103,6 +103,11 @@ class Run:
         state["slurm_commands"]=self.slurm_commands
         state["io_script"]=self.io_script
         state["func_match_text"]=self.func_match_text
+        if hasattr(self,"notes"):
+            state["notes"]=self.notes
+        else:
+            state["notes"]={}
+            
         os.makedirs(pathlib.Path(self.save_dir).parent,exist_ok=True)
         with open(self.save_dir,"w") as f:
             json.dump(state,f,cls=ConfigsEncoder)
@@ -123,6 +128,11 @@ class Run:
         )
         run.io_script=state["io_script"]
         run.func_match_text=state["func_match_text"]
+        if "notes" in state:
+            run.notes=state["notes"]
+        else:
+            run.notes={}
+            
         return run  
     
     def save_io_table(self):
@@ -394,28 +404,28 @@ class RunScreen(Screen):
         self.fs=FunctionSelector(avail_funcs=avail_modules,run=run,id="func_selector")
         self.om=OperationManager(run,id="operation_manager")
         self.io=IOManager(run,id="io_manager")
+        self.no=Notes(run,id="notes")
         self.run=run
     
     def compose(self):
         
         yield Header(show_clock=True)      
-        with TabbedContent("Input/Output","Script generator","Slurm template","Operation","Job monitor",id="tabs"):
+        with TabbedContent("Input/Output","Script generator","Slurm template","Operation","Job monitor","Notes",id="tabs"):
                 yield self.io
                 yield self.fs
                 yield self.ev
                 yield self.om
                 yield self.sm
+                yield self.no
         yield Footer()
     
-    @on(TabbedContent.TabActivated,"#tab-4")
-    async def refreshopmgr(self) -> None:
-        await self.query_one("#operation_manager").recompose()
+        
 
     @on(TabbedContent.TabActivated)
-    def refreshslurm(self) -> None:
+    async def refreshslurm(self) -> None:
         self.query_one("#slurm_manager").remove_children()
         self.query_one("#slurm_manager").mount(SlurmManager())
-        
+        await self.query_one("#operation_manager").recompose()
         
 
     def action_run_menu(self):
@@ -482,6 +492,7 @@ class IOManager(Container):
                 code = self.query_one("#io_code_editor").text
                 exec(code)
                 self.run.io_table =locals()["io_table"].to_dict(orient="list")
+                self.run.io_script=code
                 self.run.save_state()
                 table = self.query_one("#io_table")
                 table.remove_children()
@@ -490,14 +501,12 @@ class IOManager(Container):
                 table=self.query_one("#io_table")
                 table.remove_children()
                 table.mount(TextArea(text=f"Error submitting table\n{e}"))
+        
         elif event.button.id == "save_io_script":
             try:
-                code = self.query_one("#io_code_editor").text
-                with open(self.run.save_dir,'r') as f:
-                    state=json.load(f)
-                state["io_script"]=code
-                with open(self.run.save_dir,'w') as f:
-                    json.dump(state,f)
+                self.run.io_script = self.query_one("#io_code_editor").text
+                self.run.save_state()
+                
             except Exception as e:
                 self.mount(TextArea(text=f"Error saving script\n{e}"))
        
@@ -543,13 +552,12 @@ class FunctionArgSelector(Screen):
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "back_arg":
-            self.app.pop_screen()
+            self.dismiss()
             
         if event.button.id == "add_arg":
             try:
                 args={i:self.query_one("#"+i).value for i in self.func_args}
-                self.run.func_match_text[self.func_name]=args
-                self.dismiss()
+                self.dismiss(args)
             except Exception as e:
                 self.mount(Label(f"[red]Error adding arguments\n{e}"))
             
@@ -623,7 +631,8 @@ class FunctionSelector(Container):
                         keyword_arguments=dict(zip(v.keys(),[self.run.io_table[j][r] for _,j in v.items()]))
                         cmds.append(getattr(eval(mod_name),func_name)(**keyword_arguments))
 
-                self.run.all_commands=[cmds[i:i+cmd_per_chain] for i in range(0,len(cmds),cmd_per_chain)]
+                self.run.all_commands=[cmds[i:i+cmd_per_chain] for i in range(0,len(cmds),cmd_per_chain)]                
+                
                 self.run.save_state()
                 
                 self.mount(Label("[green] Functions submitted successfully!"))
@@ -633,10 +642,12 @@ class FunctionSelector(Container):
         elif event.button.id == "add_step_button":
             selected_func=self.query_one("#module_list").highlighted_child
             if selected_func:
-                await self.app.push_screen_wait(FunctionArgSelector(selected_func.children[0].renderable,self.run))
-                self.query_one("#step_info").remove_children()
-                self.query_one("#step_info").mount(ListView(*[ListItem(Static(f"{k}")) for k,v in self.run.func_match_text.items()]))
-                self.app.query_children("#num_chains").node.renderable=f"Number of chains:[bold] {len(self.run.all_commands)}"
+                func_args=await self.app.push_screen_wait(FunctionArgSelector(selected_func.children[0].renderable,self.run))
+                if func_args:
+                    self.run.func_match_text[selected_func.children[0].renderable]=func_args
+                    self.query_one("#step_info").remove_children()
+                    self.query_one("#step_info").mount(ListView(*[ListItem(Static(f"{k}")) for k,v in self.run.func_match_text.items()]))
+                    # self.app.query_children("#num_chains").node.renderable=f"Number of chains:[bold] {len(self.run.all_commands)}"
         
         elif event.button.id == "delete_step_button":
             try:
@@ -727,6 +738,9 @@ class OperationManager(Container):
                 for j in batch:
                     for k in j:
                         cmds+=k+"\n"
+                
+                cmds=cmds.rstrip("\n")
+                
                 slurm_template_=slurm_template.replace("<command>",cmds)
                 slurm_template_=slurm_template_.replace("<job_name>",self.run.run_id+f"_batch_{i+1}")
                 self.query_one("#batch_area").mount(Collapsible(Label(f"Batch {i}"),TextArea(slurm_template_),title=f"Batch {i+1}"))
@@ -775,8 +789,56 @@ class ManageSteps(Container):
         yield Horizontal(
                     Container(id="step_info"),
                     )
-        
 
+
+class NewNote(Screen):
+    def compose(self):
+        yield Vertical(
+            Header(show_clock=True),
+            Input(placeholder="Note title",id="note_title"),
+            TextArea(id="note_content"),
+            Button("Save Note",id="save_note"),
+            Footer(),
+            id="new_note"
+        )
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "save_note":
+            note_title=self.query_one("#note_title").value
+            note_content=self.query_one("#note_content").text
+            self.dismiss({"note_title":note_title,"note_content":note_content})
+    
+class Notes(Container):
+    def __init__(self,run:Run, **kwargs):
+        super().__init__(**kwargs)
+        self.run=run
+    
+    def compose(self):
+        yield Vertical(
+            Container((ListView(*[ListItem(Static(i)) for i in self.run.notes])),id="note_list"),
+            Horizontal(
+                Button("Add Note",id="add_note"),
+                Button("Delete Note",id="delete_note"),
+                Button("Edit Note",id="edit_note"),
+            )
+        )
+    @work
+    async def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "add_note":
+            note_data = await self.app.push_screen_wait(NewNote())
+            self.run.notes[note_data["note_title"]]=note_data["note_content"]
+            self.query_one("#note_list").remove_children()
+            self.query_one("#note_list").mount(ListView(*[ListItem(Static(i)) for i in self.run.notes]))
+            self.run.save_state()
+
+        elif event.button.id == "delete_note":
+            del self.run.notes[self.query_one("#note_list").children[0].highlighted_child.children[0].renderable]
+            self.query_one("#note_list").remove_children()
+            await self.query_one("#note_list").mount(ListView(*[ListItem(Static(i)) for i in self.run.notes]))
+            self.run.save_state()
+
+        elif event.button.id == "edit_note":
+            pass
             
 
     
@@ -819,3 +881,14 @@ class Bioplumber(App):
 
 if __name__ == "__main__":
     main()
+
+
+
+
+#TODO:
+#1. add sticky notes functionalities
+#2. Think about staging and submitting system
+#3. Create a way to go back to Welcome screen
+#4. Add a mechanism to borrow from other runs
+#5. Add a way to add custom functions
+#6. Add a directory helper to io_table

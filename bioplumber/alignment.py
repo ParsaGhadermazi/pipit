@@ -574,3 +574,54 @@ def align_bwa_(
                 
     
     return command
+
+def find_circular_cirit_(
+    input_file:str,
+    output_file:str,
+    cirit_jar_file_dir:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use cirit to find circular RNA.
+
+    Args:
+        input_file (str): The path to the input file (usually a fasta file)
+        output_file (str): The path to the output file (a fasta file including the circular sequences)
+        cirit_jar_file_dir (str): The path to the cirit jar file
+        container (str): The container to use
+        **kwargs: Additional arguments to pass to cirit
+    
+    Returns:
+        str: The command to run cirit
+    """
+    input_file=str(Path(input_file).absolute())
+    output_file=str(Path(output_file).absolute())
+    cirit_jar_file_dir=str(Path(cirit_jar_file_dir).absolute())
+    output_file_parent=str(Path(output_file).parent)
+    
+    if container=="none":
+        command = f"java -jar {cirit_jar_file_dir} -i {input_file} -o {output_file}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="docker":
+        command = f"docker run -v {input_file}:{input_file} -v {output_file_parent}:{output_file_parent} -v {cirit_jar_file_dir}:{cirit_jar_file_dir} {config.docker_container} java -jar {cirit_jar_file_dir} -i {input_file} -o {output_file}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+            
+    
+    elif container=="singularity":
+        
+        command = f"singularity exec --bind {input_file}:{input_file},{output_file_parent}:{output_file_parent},{cirit_jar_file_dir}:{cirit_jar_file_dir} {config.singularity_container} java -jar {cirit_jar_file_dir} -i {input_file} -o {output_file}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+            
+    else :
+        raise ValueError("Invalid container")   
+    
+    
+    return command
+
+    

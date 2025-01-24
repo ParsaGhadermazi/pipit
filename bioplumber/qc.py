@@ -102,7 +102,93 @@ def qc_fastp_(
     return command
 
     
+def generate_fastp_reports_(
+    read1:str,
+    read2:str|None,
+    outdir:str,
+    config:configs.Configs,
+    container:str="none",
+                        ):
+    """ This function generates fastp reports for the given reads.
+    
+    Args:
+        read1 (str): Path to read1 file.
+        read2 (str|None): Path to read2 file.
+        outdir (str): Output directory.
+        config (configs.Configs): Configuration object.
+        container (str): Container to use. Default is "none".
+    
+    Returns:
+        None
+    """
+    if read2 is None:
+        paired = False
+    else:
+        paired = True
+    
+    if container=="none":
+        outdir = Path(outdir).absolute()
+        if paired:
+            command = f"fastp -i {read1} -I {read2} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+        else:
+            command = f"fastp -i {read1} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+    
+    elif container=="docker":
+        outdir = Path(outdir).absolute()
+        if paired:
+            command = f"docker run -v {outdir}:{outdir} {config.docker_container} fastp -i {read1} -I {read2} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+        else:
+            command = f"docker run -v {outdir}:{outdir} {config.docker_container} fastp -i {read1} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+    
+    elif container=="singularity":
+        outdir = Path(outdir).absolute()
+        if paired:
+            command = f"singularity exec --bind {outdir}:{outdir} {config.singularity_container} fastp -i {read1} -I {read2} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+        else:
+            command = f"singularity exec --bind {outdir}:{outdir} {config.singularity_container} fastp -i {read1} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+    
+    return command
+        
+def run_checkm_(
+    bins_dir:str,
+    output_dir:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+                        )->str:
+    """
+    This function will return the script to run checkm.
+    
+    Args:
+    bins_dir (str): The path to the directory containing the bins.
+    output_dir (str): The path to the output directory.
+    config (configs.Configs): The configuration object.
+    container (str): The container to use. Default is "none".
+    **kwargs: Additional arguments.
+    
+    Returns:
+    str: The script to run checkm.
+    
+    """
+    bins_dir = str(Path(bins_dir).absolute())
+    output_dir = str(Path(output_dir).absolute())
+    output_dir_parent = str(Path(output_dir).absolute().parent)
 
-        
-        
+    if container == "none":
+        command = f"checkm lineage_wf {bins_dir} {output_dir}"
+        for key,value in kwargs.items():
+            command+= f" -{key} {value}"
+    
+    elif container == "docker":
+        bind_dir = " -v ".join(set([bins_dir+":"+bins_dir, output_dir_parent+":"+output_dir_parent]))
+        command = f"docker run -it{bind_dir} {config.docker_container} checkm lineage_wf {bins_dir} {output_dir}"
+    
+    elif container == "singularity":
+        bind_dir = ",".join(set([bins_dir+":"+bins_dir, output_dir_parent+":"+output_dir_parent]))
+        command = f"singularity exec --bind {bind_dir} {config.singularity_container} checkm lineage_wf {bins_dir} {output_dir}"
+
+    else:
+        raise ValueError("Invalid container")
+    
+    return command
 

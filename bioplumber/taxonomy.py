@@ -58,22 +58,24 @@ def assign_taxonomy_gtdb_tk_(
     """
     genomes_dir = str(Path(genomes_dir).absolute())
     output_dir = str(Path(output_dir).absolute())
-    if not Path(output_dir).exists():
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
     if container == "none":
         command = f"gtdbtk classify_wf --genome_dir {genomes_dir} --out_dir {output_dir}"
         for key,value in kwargs.items():
             command+= f" --{key} {value}"
         
     elif container == "docker":
-        ref_dir = str(Path(config.gtdb_local_db_dir).absolute())
+        ref_dir = str(Path(db_dir).absolute())
         command = f"docker run -v {ref_dir}:/refdata -v {genomes_dir}:{genomes_dir} -v {output_dir}:{output_dir} {config.docker_container} gtdbtk classify_wf --genome_dir {genomes_dir} --out_dir {output_dir}"
         for key,value in kwargs.items():
             command+= f" --{key} {value}"
     
     elif container == "singularity":
-        ref_dir= str(Path(config.gtdb_local_db_dir).absolute())
+        ref_dir= str(Path(db_dir).absolute())
         bind_dir = ",".join(set([genomes_dir+":"+genomes_dir, output_dir+":"+output_dir]))
         command = f"singularity exec --bind {ref_dir}:/refdata --bind {bind_dir} {config.singularity_container} gtdbtk classify_wf --genome_dir {genomes_dir} --out_dir {output_dir}"
         for key,value in kwargs.items():
             command+= f" --{key} {value}"
+    
+    else:
+        raise ValueError("Invalid container")
+    return command

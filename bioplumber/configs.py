@@ -22,3 +22,9 @@ DEFAULT_CONFIGS = Configs(
     docker_container="",
 )
 
+RECOMMENDED_DOCKER_CONTAINERS ={
+    "checkm":"NA",
+    "drep":"parsaghadermazi/drep",
+    "megahit": "NA"
+}
+
