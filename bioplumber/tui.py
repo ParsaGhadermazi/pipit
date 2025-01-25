@@ -205,7 +205,21 @@ class Project:
         for run in self.runs:
             txt+=f"### {run.run_id}\n"
             txt+=f"#### Time Created: {run.date_created.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            txt+=f"IOTABLE and command placeholder\n"
+            txt+=f"The following script was used to generate the input/output of the run:\n"
+            txt+=f"```python\n{run.io_script}\n```\n"
+            txt+=f"#### Commands:\n"
+            for func,arg in run.func_match_text.items():
+                txt+=f"##### {func}\n"
+                txt+=f"###### Arguments:\n"
+                for k,v in arg.items():
+                    txt+=f"- {k}: {v}\n"
+
+            txt+=f"#### Notes:\n"
+            for note in run.notes:
+                txt+="-------------------\n"
+                txt+=f"##### {note}\n\n"
+                txt+=f"{run.notes[note]}\n"
+        
         return txt
 
 class WelcomeScreen(Screen):
@@ -439,7 +453,26 @@ class RunScreen(Screen):
         self.app.pop_screen()
         self.app.pop_screen()
         self.app.pop_screen()
-        
+
+class DirectoryReference(Container):
+    def compose(self):
+        yield Vertical(
+        Container(
+                Vertical(
+                    Input(placeholder="Base Directory",id="base_dir_input"),
+                    DirectoryTree("/",id="folder_tree"),
+                    TextArea(id="selected_dir")
+                        )
+                ))
+    
+    def on_input_changed(self, event: Input.Changed):
+        try:
+            self.query_one("#folder_tree").path=event.value
+        except Exception as e:
+            pass
+    
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected):
+        self.query_one("#selected_dir").text=str(event.path)
 
 class IOManager(Container):
 
@@ -454,10 +487,12 @@ class IOManager(Container):
         
         yield Vertical(
                 Horizontal(
-                        TextArea.code_editor(text=self.run.io_script,
+                        Vertical(TextArea.code_editor(text=self.run.io_script,
                                              language="python",
                                              id="io_code_editor",
                                              ),
+                                 DirectoryReference(id="dir_ref"),
+                                 ),
                         DataTable(id="io_table"),
                         id="io_area"
                         ),
@@ -794,19 +829,19 @@ class ManageSteps(Container):
 class NewNote(Screen):
     def compose(self):
         yield Vertical(
-            Header(show_clock=True),
             Input(placeholder="Note title",id="note_title"),
             TextArea(id="note_content"),
-            Button("Save Note",id="save_note"),
-            Footer(),
+            Horizontal(Button("Save Note",id="save_note_button"),Button("Cancel",id="cancel_note_button"),id="save_note"),
             id="new_note"
         )
     
     def on_button_pressed(self, event: Button.Pressed):
-        if event.button.id == "save_note":
+        if event.button.id == "save_note_button":
             note_title=self.query_one("#note_title").value
             note_content=self.query_one("#note_content").text
             self.dismiss({"note_title":note_title,"note_content":note_content})
+        if event.button.id == "cancel_note_button":
+            self.dismiss()
     
 class Notes(Container):
     def __init__(self,run:Run, **kwargs):
@@ -825,11 +860,13 @@ class Notes(Container):
     @work
     async def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "add_note":
+            
             note_data = await self.app.push_screen_wait(NewNote())
-            self.run.notes[note_data["note_title"]]=note_data["note_content"]
-            self.query_one("#note_list").remove_children()
-            self.query_one("#note_list").mount(ListView(*[ListItem(Static(i)) for i in self.run.notes]))
-            self.run.save_state()
+            if note_data:
+                self.run.notes[note_data["note_title"]]=note_data["note_content"]
+                self.query_one("#note_list").remove_children()
+                self.query_one("#note_list").mount(ListView(*[ListItem(Static(i)) for i in self.run.notes]))
+                self.run.save_state()
 
         elif event.button.id == "delete_note":
             del self.run.notes[self.query_one("#note_list").children[0].highlighted_child.children[0].renderable]
@@ -886,7 +923,6 @@ if __name__ == "__main__":
 
 
 #TODO:
-#1. add sticky notes functionalities
 #2. Think about staging and submitting system
 #3. Create a way to go back to Welcome screen
 #4. Add a mechanism to borrow from other runs

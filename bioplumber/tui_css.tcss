@@ -198,3 +198,47 @@ align: center middle;
 {
     height:3;
 }
+
+NewNote
+{
+
+    background: rgba(0, 0, 0, 0.5);
+    align: center middle;
+    content-align:center middle;
+}
+
+
+
+#new_note
+{
+    width: 60%;
+    height:70%;
+    content-align:center middle;
+    align:center middle;
+    background: $primary;
+}
+
+#note_title
+{
+    margin: 1 1 1 1;
+}
+
+#note_content
+{
+    margin: 2 1 1 1;
+}
+
+#save_note
+{
+    content-align:center middle;
+    align:center middle;
+    height:3;
+}
+#save_note_button
+{
+   width:15;
+}
+#selected_dir
+{
+    height:5;
+}
