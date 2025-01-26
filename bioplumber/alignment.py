@@ -456,6 +456,39 @@ def sam_tools_fasq_(
     
     return command
 
+def sam_tools_fasta_(
+    input_file:str,
+    outdir:str,
+    config:configs.Configs,
+    container:str="none",
+    )->str:
+    """
+    This function ouputs a command to use samtools to convert a bam file to a fasta file.
+    
+    Args:
+        input_file (str): The path to the input file
+        outdir (str): The output directory for the fasta file
+        container (str): The container to use
+        
+    Returns:
+        str: The command to convert the bam file to a fasta file
+    """
+    if container=="none":
+        input_file=str(Path(input_file).absolute())
+        outdir=str(Path(outdir).absolute())
+        command = f"samtools fasta {input_file} > {outdir}"
+    
+    elif container=="docker":
+        input_file=str(Path(input_file).absolute())
+        outdir=str(Path(outdir).absolute())
+        command = f"docker run -v {input_file}:{input_file} -v {outdir}:{outdir} {config.docker_container} samtools fasta {input_file} > {outdir}"
+    
+    elif container=="singularity":
+        input_file=str(Path(input_file).absolute())
+        outdir_parent=str(Path(outdir).parent.absolute())
+        command = f"singularity exec -B {input_file}:{input_file} -B {outdir}:{outdir} {config.singularity_container} samtools fasta {input_file} > {outdir}"
+    
+    return command
 
     
 def index_bwa_(
