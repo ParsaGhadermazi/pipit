@@ -135,6 +135,10 @@ ProjectAlreadyExists
 {
     margin: 1 1 1 1;
 }
+#show_notebook
+{
+    margin: 1 1 1 1;
+}
 #back
 {
 
@@ -240,5 +244,10 @@ NewNote
 }
 #selected_dir
 {
-    height:5;
+    height:3;
+}
+
+#folder_tree
+{
+    margin: 0 1 0 1;
 }

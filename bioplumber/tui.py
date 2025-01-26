@@ -12,6 +12,7 @@ from textual.widgets import (Header,
                              Static,
                              Collapsible,
                              Select,
+                             MarkdownViewer,
                               TabbedContent,
                              Label)
 
@@ -29,7 +30,7 @@ from bioplumber import (configs,
                         taxonomy,
                         alignment)
 from textual import on, work
-
+from textual.binding import Binding
 from textual.validation import Number
 import math
 import json
@@ -196,13 +197,14 @@ class Project:
         txt+="- [Description](#description)\n"
         txt+="- [Runs](#runs)\n"
         for run in self.runs:
-            txt+=f"- [{run.run_id}](#{process_for_md_table(run.run_id)})\n"
+            txt+=f"   - [{run.run_id}](#{process_for_md_table(run.run_id)})\n"
             txt+=""  
         txt+=f"## Time Created: {self.time_created}\n"
         txt+="## Description: \n\n"
         txt+=f"{self.description}\n"
         txt+="## Runs:\n"
         for run in self.runs:
+            txt+="-------------------\n"
             txt+=f"### {run.run_id}\n"
             txt+=f"#### Time Created: {run.date_created.strftime('%Y-%m-%d %H:%M:%S')}\n"
             txt+=f"The following script was used to generate the input/output of the run:\n"
@@ -213,12 +215,13 @@ class Project:
                 txt+=f"###### Arguments:\n"
                 for k,v in arg.items():
                     txt+=f"- {k}: {v}\n"
-
+            txt+=f"#### Commands:\n"
+            txt+=f"\n\nNumber of chains: {len(run.all_commands)}\n\nCommands per chain: {len(run.func_match_text)}\n\nNumber of Slurm commands: {len(run.slurm_commands)}\n\n"
+        
             txt+=f"#### Notes:\n"
             for note in run.notes:
-                txt+="-------------------\n"
-                txt+=f"##### {note}\n\n"
-                txt+=f"{run.notes[note]}\n"
+                txt+=f"- **{note}**:\n\n"
+                txt+=f"    {run.notes[note]}\n"
         
         return txt
 
@@ -244,6 +247,10 @@ class WelcomeScreen(Screen):
 
 
 class NewProject(Screen):
+    BINDINGS=[
+        Binding("ctrl+w","welcome_menu","Welcome menu",priority=True),
+        ]
+    
     def compose(self):
         yield Vertical(
             Header(show_clock=True),
@@ -258,7 +265,7 @@ class NewProject(Screen):
                     ),
                 Button("Create Project",id="create_project")
                 ),
-            Footer(Label("Developed by [bold]Parsa Ghadermazi")))
+            Footer())
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "create_project":
@@ -282,21 +289,32 @@ class NewProject(Screen):
                 with open(os.path.join(project_dir,"project_metadata.json"),"w") as f:
                     json.dump(project.__dict__,f)
                 self.app.push_screen(RunStation(project),"run_screen")
-
+    
+    def action_welcome_menu(self):
+        self.app.pop_screen()
         
 class LoadProject(Screen):
+    
+    BINDINGS=[
+        Binding("ctrl+w","welcome_menu","Welcome menu",priority=True),
+        ]
+    
     def compose(self):
         yield Vertical(
+            Header(show_clock=True),
             Container(
                 Vertical(
                     Input(placeholder="Base Directory",id="project_dir_input"),
                     DirectoryTree("/",id="project_dir_tree"),
                     Button("Load Project",id="load_project")
-                    )))
+                    )),
+            Footer(),
+            )
 
     def on_input_changed(self, event: Input.Changed):
         try:
             self.query_one("#project_dir_tree").path=event.value
+        
         except Exception as e:
             pass
     
@@ -319,6 +337,9 @@ class LoadProject(Screen):
                     self.remove_children("#project_load_error")
                 else:
                     self.mount(Label(f"[red]Selected folder is not a valid project",id="project_load_error"))
+    
+    def action_welcome_menu(self):
+        self.app.pop_screen()
             
 class ProjectAlreadyExists(Screen):
     def __init__(self,project:Project):
@@ -350,7 +371,30 @@ class ProjectAlreadyExists(Screen):
         elif event.button.id == "no_overwrite":
             self.app.pop_screen()
 
+
+class ShowMarkdown(Screen):
+    def __init__(self,markdown:str):
+        super().__init__()
+        self.markdown=markdown
+    
+    def compose(self):
+        yield Vertical(
+            Header(show_clock=True),
+            MarkdownViewer(self.markdown,show_table_of_contents=True),
+            Button("Back",id="back_button_md"),
+            Footer()
+            )
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "back_button_md":
+            self.app.pop_screen()
+    
 class RunStation(Screen):
+
+    BINDINGS=[
+        ("ctrl+t","projects_menu","Projects menu"),
+        ("ctrl+w","welcome_menu","Welcome menu")
+        ]
     
     def __init__(self,project:Project):
         super().__init__()
@@ -371,11 +415,13 @@ class RunStation(Screen):
                     Input(placeholder="Run ID",id="run_id"),
                     Horizontal(
                                Button("Enter Run Station",id="create_run"),
-                               Button("Update Notebook",id="update_notebook")
+                               Button("Update Notebook",id="update_notebook"),
+                               Button("Show Notebook",id="show_notebook")
                                )
-                        ),
-                    Button("Back",id="back"),
-                    ))
+                        )
+                    ),
+            Footer()
+            )
     
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "create_run":
@@ -394,15 +440,26 @@ class RunStation(Screen):
 
                 self.app.push_screen(RunScreen(run),"run_screen")
             
-        elif event.button.id == "back":
-            self.app.pop_screen()
         elif event.button.id == "update_notebook":
             with open(os.path.join(self.project.directory,"project_notebook.md"),"w") as f:
                 f.write(self.project.make_markdown_report())
+        
+        elif event.button.id == "show_notebook":
+            with open(os.path.join(self.project.directory,"project_notebook.md"),"r") as f:
+                md=f.read()
+            self.app.push_screen(ShowMarkdown(md))
+            
     
     def on_list_view_selected(self, event: ListView.Selected):
         run_id=event.item.children[0].renderable
         self.query_one("#run_id").value=run_id
+        
+    def action_projects_menu(self):
+        self.app.pop_screen()
+    
+    def action_welcome_menu(self):
+        self.app.pop_screen()
+        self.app.pop_screen()
         
 class RunScreen(Screen):
     BINDINGS=[
@@ -492,16 +549,17 @@ class IOManager(Container):
                                              id="io_code_editor",
                                              ),
                                  DirectoryReference(id="dir_ref"),
-                                 ),
-                        DataTable(id="io_table"),
-                        id="io_area"
-                        ),
-                Horizontal(
+                    Horizontal(
                     Button("Save Script", id="save_io_script"),
                     Button("Render I/O table", id="io_render"),
                     Button("Submit I/O table", id="io_submit"),
                     Button("Save Table", id="save_table"),
                     id="io_buttons")
+                                 ),
+                        DataTable(id="io_table"),
+                        id="io_area"
+                        ),
+
                     )   
         
     
@@ -827,10 +885,14 @@ class ManageSteps(Container):
 
 
 class NewNote(Screen):
+    def __init__(self,label:str="",text:str="", **kwargs):
+        super().__init__(**kwargs)
+        self.label=label
+        self.text=text
     def compose(self):
         yield Vertical(
-            Input(placeholder="Note title",id="note_title"),
-            TextArea(id="note_content"),
+            Input(self.label,placeholder="Note title",id="note_title"),
+            TextArea(text=self.text,id="note_content"),
             Horizontal(Button("Save Note",id="save_note_button"),Button("Cancel",id="cancel_note_button"),id="save_note"),
             id="new_note"
         )
@@ -850,7 +912,7 @@ class Notes(Container):
     
     def compose(self):
         yield Vertical(
-            Container((ListView(*[ListItem(Static(i)) for i in self.run.notes])),id="note_list"),
+            Container((ListView(*[ListItem(Static(i),classes="noteitems") for i in self.run.notes])),id="note_list"),
             Horizontal(
                 Button("Add Note",id="add_note"),
                 Button("Delete Note",id="delete_note"),
@@ -865,17 +927,23 @@ class Notes(Container):
             if note_data:
                 self.run.notes[note_data["note_title"]]=note_data["note_content"]
                 self.query_one("#note_list").remove_children()
-                self.query_one("#note_list").mount(ListView(*[ListItem(Static(i)) for i in self.run.notes]))
+                self.query_one("#note_list").mount(ListView(*[ListItem(Static(i),classes="noteitems") for i in self.run.notes]))
                 self.run.save_state()
 
         elif event.button.id == "delete_note":
             del self.run.notes[self.query_one("#note_list").children[0].highlighted_child.children[0].renderable]
             self.query_one("#note_list").remove_children()
-            await self.query_one("#note_list").mount(ListView(*[ListItem(Static(i)) for i in self.run.notes]))
+            await self.query_one("#note_list").mount(ListView(*[ListItem(Static(i),classes="noteitems") for i in self.run.notes]))
             self.run.save_state()
 
         elif event.button.id == "edit_note":
-            pass
+            selected_note=self.query_one("#note_list").children[0].highlighted_child.children[0].renderable
+            note_data = await self.app.push_screen_wait(NewNote(selected_note,self.run.notes[selected_note]))
+            if note_data:
+                self.run.notes[note_data["note_title"]]=note_data["note_content"]
+                self.query_one("#note_list").remove_children()
+                self.query_one("#note_list").mount(ListView(*[ListItem(Static(i),classes="noteitems") for i in self.run.notes]))
+                self.run.save_state()
             
 
     
