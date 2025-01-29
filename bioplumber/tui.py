@@ -180,8 +180,10 @@ class Project:
             project_dict=json.load(f)
         project=cls(**{k:v for k,v in project_dict.items() if k!="runs"})
         run_dir=pathlib.Path(project_dir).joinpath("runs")
+        runs=[]
         for run in run_dir.rglob("*.run"):
-            project.add_run(Run.load_run(project.directory,run.name.split(".")[0]))
+            runs.append(Run.load_run(project.directory,run.name.split(".")[0]))
+        project.runs=sorted(runs,key=lambda x:x.date_created)
         return project
     
     def save_state(self):
@@ -336,7 +338,7 @@ class LoadProject(Screen):
                 if self.query("#project_load_error"):
                     self.remove_children("#project_load_error")
                 else:
-                    self.mount(Label(f"[red]Selected folder is not a valid project",id="project_load_error"))
+                    self.mount(Label(f"[red]Selected folder is not a valid project{e}",id="project_load_error"))
     
     def action_welcome_menu(self):
         self.app.pop_screen()

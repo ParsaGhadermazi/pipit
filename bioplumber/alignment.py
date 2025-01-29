@@ -657,4 +657,219 @@ def find_circular_cirit_(
     
     return command
 
+
+def mmseqs_create_db_(
+    sequence_dir:str,
+    output_dir:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use mmseqs to create a database from a fasta file.
+
+    Args:
+        sequence_dir (str): The path to the fasta file
+        output_dir (str): The directory for the database files
+        container (str): The container to use
+        
+    Returns:
+        str: The command to index the fasta file
+    """
+    sequence_dir=str(Path(sequence_dir).absolute())
+    output_dir=str(Path(output_dir).absolute())
+    output_dir_parent=str(Path(output_dir).parent.absolute())
     
+    if container=="none":
+        command = f"mmseqs createdb {sequence_dir} {output_dir}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="docker":
+        command = f"docker run -v {sequence_dir}:{sequence_dir} -v {output_dir_parent}:{output_dir_parent} {config.docker_container} mmseqs createdb {sequence_dir} {output_dir}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="singularity":
+        command = f"singularity exec --bind {sequence_dir}:{sequence_dir},{output_dir_parent}:{output_dir_parent} {config.singularity_container} mmseqs createdb {sequence_dir} {output_dir}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+
+    return command
+
+def mmseqs_index_db_(
+    db_dir:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use mmseqs to index a database.
+
+    Args:
+        db_dir (str): The path to the database
+        config (configs.Configs): The configuration object to use
+        container (str): The container to use
+        
+    Returns:
+        str: The command to index the database
+    """
+    db_dir=str(Path(db_dir).absolute())
+    tmp_dir=str(Path(db_dir).parent.absolute())
+    
+    if container=="none":
+        command = f"mmseqs createindex {db_dir} {tmp_dir}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="docker":
+        command = f"docker run -v {db_dir}:{db_dir} -v {tmp_dir}:{tmp_dir} {config.docker_container} mmseqs createindex {db_dir} {tmp_dir}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="singularity":
+        command = f"singularity exec --bind {db_dir}:{db_dir},{tmp_dir}:{tmp_dir} {config.singularity_container} mmseqs createindex {db_dir} {tmp_dir}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+        
+    return command
+
+def mmseqs_search_(
+    db_dir:str,
+    query_file:str,
+    output_file:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use mmseqs to search a database.
+
+    Args:
+        db_dir (str): The path to the database
+        query_file (str): The path to the query file
+        output_file (str): The path to the output file
+        config (configs.Configs): The configuration object to use
+        container (str): The container to use
+        
+    Returns:
+        str: The command to search the database
+    """
+    db_dir=str(Path(db_dir).absolute())
+    query_file=str(Path(query_file).absolute())
+    output_file=str(Path(output_file).absolute())
+    output_file_parent=str(Path(output_file).parent.absolute())
+    
+    if container=="none":
+        command = f"mmseqs search {query_file} {db_dir} {output_file} {output_file_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="docker":
+        command = f"docker run -v {db_dir}:{db_dir} -v {query_file}:{query_file} -v {output_file_parent}:{output_file_parent} {config.docker_container} mmseqs search {query_file} {db_dir} {output_file} {output_file_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="singularity":
+        command = f"singularity exec --bind {db_dir}:{db_dir},{query_file}:{query_file},{output_file_parent}:{output_file_parent} {config.singularity_container} mmseqs search {query_file} {db_dir} {output_file} {output_file_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    return command
+
+
+def mmseqs_convert_to_flat_(
+    query_db:str,
+    target_db:str,
+    result_db:str,
+    results_table:str,
+    config:configs.Configs,
+    mode:str="4",
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use mmseqs to convert a search result to a flat file.
+
+    Args:
+        query_db (str): The path to the query database
+        target_db (str): The path to the target database
+        result_db (str): The path to the result database
+        results_table (str): The path to the results table
+        config (configs.Configs): The configuration object to use
+        container (str): The container to use
+    
+    Returns:
+        str: The command to convert the search result to a flat file
+    """
+    query_db=str(Path(query_db).absolute())
+    target_db=str(Path(target_db).absolute())
+    result_db=str(Path(result_db).absolute())
+    results_table=str(Path(results_table).absolute())
+    results_table_parent=str(Path(results_table).parent.absolute())
+    
+    if container=="none":
+        command = f"mmseqs convertalis {query_db} {target_db} {result_db} {results_table} --format-mode {mode}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+        
+    
+    elif container=="docker":
+        command = f"docker run -v {query_db}:{query_db} -v {target_db}:{target_db} -v {result_db}:{result_db} -v {results_table_parent}:{results_table_parent} {config.docker_container} mmseqs convertalis {query_db} {target_db} {result_db} {results_table} --format-mode {mode}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+            
+    elif container=="singularity":
+        command = f"singularity exec --bind {query_db}:{query_db},{target_db}:{target_db},{result_db}:{result_db},{results_table_parent}:{results_table_parent} {config.singularity_container} mmseqs convertalis {query_db} {target_db} {result_db} {results_table} --format-mode {mode}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    return command
+
+def mmseqs_easy_search_(
+    query_file:str,
+    target_file:str,
+    output_file:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use mmseqs to search a database in fasta/fastq format.
+    It is good for when alignment is done against the database once or database is small.
+
+    Args:
+        query_file (str): The path to the query file
+        target_file (str): The path to the target file
+        output_file (str): The path to the output file
+        config (configs.Configs): The configuration object to use
+        container (str): The container to use
+    
+    Returns:
+        str: The command to search the database
+    """
+    
+    query_file=str(Path(query_file).absolute())
+    target_file=str(Path(target_file).absolute())
+    output_file=str(Path(output_file).absolute())
+    output_file_parent=str(Path(output_file).parent.absolute())
+    
+    if container=="none":
+        command = f"mmseqs easy-search {query_file} {target_file} {output_file} {output_file_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+            
+    elif container=="docker":
+        command = f"docker run -v {query_file}:{query_file} -v {target_file}:{target_file} -v {output_file_parent}:{output_file_parent} {config.docker_container} mmseqs easy-search {query_file} {target_file} {output_file} {output_file_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="singularity":
+        command = f"singularity exec --bind {query_file}:{query_file},{target_file}:{target_file},{output_file_parent}:{output_file_parent} {config.singularity_container} mmseqs easy-search {query_file} {target_file} {output_file} {output_file_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+            
+    return command
+    
+
+
