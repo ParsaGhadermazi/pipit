@@ -28,7 +28,8 @@ from bioplumber import (configs,
                         slurm,
                         abundance,
                         taxonomy,
-                        alignment)
+                        alignment,
+                        dereplication)
 from textual import on, work
 from textual.binding import Binding
 from textual.validation import Number
@@ -45,7 +46,7 @@ import time
 
 def get_available_functions():
     am=[]
-    for module in [bining,files,qc,assemble,alignment,taxonomy,abundance]:
+    for module in [bining,files,qc,assemble,alignment,taxonomy,abundance,dereplication]:
         am.append((module.__name__,[i for i in dir(module) if i.endswith("_") and not i.startswith("__")]))
     return dict(am)
     

@@ -1,5 +1,6 @@
 from pathlib import Path as Path
 from bioplumber import configs
+from typing import Iterable
 
 def index_bowtie_(
     sequence_dir: str,
@@ -871,5 +872,105 @@ def mmseqs_easy_search_(
             
     return command
     
+def mmseqs_download_database_(
+    database_name:str,
+    output_dir:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use mmseqs to download a database.
+    
+    Args:
+        database_name (str): The name of the database
+        output_dir (str): The output directory for the database
+        config (configs.Configs): The configuration object to use
+        container (str): The container to use
+    
+    Returns:
+        str: The command to download the database
+    
+    """
+    output_dir=str(Path(output_dir).absolute())
+    output_dir_parent=str(Path(output_dir).parent.absolute())
+    
+    if container=="none":
+        command = f"mmseqs databases {database_name} {output_dir} {output_dir_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="docker":
+        command = f"docker run -v {output_dir_parent}:{output_dir_parent} {config.docker_container} mmseqs databases {database_name} {output_dir} {output_dir_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="singularity":
+        command = f"singularity exec --bind {output_dir_parent}:{output_dir_parent} {config.singularity_container} mmseqs databases {database_name} {output_dir} {output_dir_parent}/tmp"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    return command
+def fastani_compare_genomes_(
+    query_genomes:str|Iterable[str],
+    reference_genomes:str|Iterable[str],
+    output_file:str,
+    config:configs.Configs,
+    container:str="none",
+    **kwargs
+    )->str:
+    """
+    This function ouputs a command to use fastANI to compare genomes.
+    
+    Args:
+        query_genomes (str|Iterable): The path to the query genomes
+        reference_genomes (str|Iterable): The path to the reference genomes
+        output_file (str): The path to the output file
+        container (str): The container to use
+        **kwargs: Additional arguments to pass to fastANI
+    
+    Returns:
+        str: The command to compare genomes
+    """
+    if isinstance(query_genomes,str):
+        query_genomes=[query_genomes]
+    if isinstance(reference_genomes,str):
+        reference_genomes=[reference_genomes]
+    query_genomes=[str(Path(x).absolute()) for x in query_genomes]
+    query_genomes_parent=list(set(str(Path(x).parent.absolute()) for x in query_genomes))
+    reference_genomes=[str(Path(x).absolute()) for x in reference_genomes]
+    reference_genomes_parent=list(set(str(Path(x).parent.absolute()) for x in reference_genomes))
+    output_file=str(Path(output_file).absolute())
+    output_file_parent=str(Path(output_file).parent.absolute())
+    tmp_dir_q=Path(output_file).parent/"tmp_q"
+    tmp_dir_r=Path(output_file).parent/"tmp_r"
+    with open(tmp_dir_q,"w") as f:
+        for x in query_genomes:
+            f.write(x+"\n")
+    with open(tmp_dir_r,"w") as f:
+        for x in reference_genomes:
+            f.write(x+"\n")
+    
+    if container=="none":
+        command = f"fastANI --ql {tmp_dir_q} --rl {tmp_dir_r} -o {output_file}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+    
+    elif container=="docker":
+        bind_paths=" -v ".join([i+":"+i for i in query_genomes_parent+reference_genomes_parent+[output_file_parent]])
+        command = f"docker run -v {bind_paths} {config.docker_container} fastANI --ql {tmp_dir_q} --rl {tmp_dir_r} -o {output_file}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
 
-
+    
+    elif container=="singularity":
+        bind_paths=",".join([i+":"+i for i in query_genomes_parent+reference_genomes_parent+[output_file_parent]])
+        command = f"singularity exec --bind {bind_paths} {config.singularity_container} fastANI --ql {tmp_dir_q} --rl {tmp_dir_r} -o {output_file}"
+        for key,value in kwargs.items():
+            command = command + f" --{key} {value}"
+        
+    
+    else:
+        raise ValueError("Invalid container")
+    
+    return command

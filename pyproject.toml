@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bioplumber"
-version = "1.0.2"
+version = "1.0.7"
 description = ""
 authors = ["ParsaGhadermazi <54489047+ParsaGhadermazi@users.noreply.github.com>"]
 
