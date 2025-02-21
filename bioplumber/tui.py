@@ -635,6 +635,7 @@ class FunctionArgSelector(Screen):
                     *[Horizontal(Label(argname,classes="SelectIOtitles"),Select(zip(self.run.io_table.keys(),self.run.io_table.keys()),classes="SelectIOpts",id=argname),classes="optcontainer") for argname in self.func_args ]
                     ,id="funcargselects"
                 ),
+                Horizontal(Button("Add Custom Arguments",id="add_kwargs"),id="add_kwargs_container"),
                 Horizontal(
                     Button("Add",id="add_arg"),
                     Button("Back",id="back_arg"),
@@ -656,7 +657,13 @@ class FunctionArgSelector(Screen):
                 self.dismiss(args)
             except Exception as e:
                 self.mount(Label(f"[red]Error adding arguments\n{e}"))
-            
+        
+        if event.button.id == "add_kwargs":
+            try:
+                self.query_one("#funcargselects").mount(Horizontal(Input(classes="text_bar_kwargs"),Select(zip(self.run.io_table.keys(),self.run.io_table.keys()),classes="selectkwargs"),classes="optcontainer"))
+            except Exception as e:
+                self.mount(Label(f"[red]Error adding arguments\n{e}"))
+        
 
                 
 
