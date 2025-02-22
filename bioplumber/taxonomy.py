@@ -3,7 +3,8 @@ from pathlib import Path as Path
 
 def download_gtdb_tk_db_(output_dir:str,
                          config:configs.Configs,
-                         container:str="none")->str:
+                         container:str="none",
+                         )->str:
     """
     This function will return the script to download the GTDB-Tk database.
     
@@ -60,22 +61,22 @@ def assign_taxonomy_gtdb_tk_(
     output_dir = str(Path(output_dir).absolute())
     if container == "none":
         command = f"gtdbtk classify_wf --genome_dir {genomes_dir} --out_dir {output_dir}"
-        for key,value in kwargs.items():
-            command+= f" --{key} {value}"
+
         
     elif container == "docker":
         ref_dir = str(Path(db_dir).absolute())
         command = f"docker run -v {ref_dir}:/refdata -v {genomes_dir}:{genomes_dir} -v {output_dir}:{output_dir} {config.docker_container} gtdbtk classify_wf --genome_dir {genomes_dir} --out_dir {output_dir}"
-        for key,value in kwargs.items():
-            command+= f" --{key} {value}"
+
     
     elif container == "singularity":
         ref_dir= str(Path(db_dir).absolute())
         bind_dir = ",".join(set([genomes_dir+":"+genomes_dir, output_dir+":"+output_dir]))
         command = f"singularity exec --bind {ref_dir}:/refdata --bind {bind_dir} {config.singularity_container} gtdbtk classify_wf --genome_dir {genomes_dir} --out_dir {output_dir}"
-        for key,value in kwargs.items():
-            command+= f" --{key} {value}"
+
     
     else:
         raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command += f" {value.pre} {value.value}"
     return command

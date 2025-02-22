@@ -72,7 +72,8 @@ def cat_files_(files:Iterable[str],
                output_name:str,
                configs:configs.Configs,
                container:str="none",
-               **kwargs)->str:
+               **kwargs:dict[str,configs.kwgs_tuple]
+               )->str:
     """this function ouputs a command to use cat to concatenate files provided in the input
     
     Args:
@@ -91,24 +92,23 @@ def cat_files_(files:Iterable[str],
     output_path = pathlib.Path(parents[0]) / output_name
     if container=="none":
         cat_command = f"cat {' '.join(files)} > {output_path.absolute()}"
-        for key,value in kwargs.items():
-            cat_command = cat_command + f" --{key} {value}"
+
     
     
     elif container=="docker":
         mapfiles=" ".join([f"-v {str(pathlib.Path(file).absolute())}:{str(pathlib.Path(file).absolute())}" for file in files])
         cmd= " ".join([f"{str(pathlib.Path(file).absolute())}" for file in files])
         cat_command = f"docker run {mapfiles} {configs.docker_container} cat {cmd} > {str(output_path.absolute())}"
-        for key,value in kwargs.items():
-            cat_command = cat_command + f" --{key} {value}"
+
     
     
     elif container=="singularity":
         mapfiles=",".join([f"{str(pathlib.Path(file).absolute())}:{str(pathlib.Path(file).absolute())}" for file in files])
         cmd= " ".join([f"{str(pathlib.Path(file).absolute())}" for file in files])
         cat_command = f"singularity exec --bind {mapfiles} {configs.singularity_container} cat {cmd} > {str(output_path.absolute())}"
-        for key,value in kwargs.items():
-            cat_command = cat_command + f" --{key} {value}"
+
+    for _, value in kwargs.items():
+        cat_command += f" {value.pre} {value.value}"
     
     return cat_command
 
@@ -142,7 +142,7 @@ def download_wget_(
     output_dir:str,
     configs:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs:dict[str,configs.kwgs_tuple]
     )->str:
     """This function will return the script to download a file from a url using wget.
     
@@ -162,21 +162,22 @@ def download_wget_(
     
     if container == "none":
         command = f"wget -P {output_dir} {url}"
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+
     
     elif container == "docker":
         command = f"docker run -v {output_dir}:{output_dir} {configs.docker_container} wget -P {output_dir} {url}"
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+
     
     elif container == "singularity":
         command = f"singularity exec --bind {output_dir}:{output_dir} {configs.singularity_container} wget -P {output_dir} {url}"
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+
     
     else:
         raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command += f" {value.pre} {value.value}"
+        
     
     return command
     
@@ -187,7 +188,7 @@ def extract_tar_(
     configs:configs.Configs,
     container:str="none",
     args:str="xvzf",
-    **kwargs
+    **kwargs:dict[str,configs.kwgs_tuple]
     )->str:
     """This function will return the script to extract a tar file.
     
@@ -208,24 +209,22 @@ def extract_tar_(
     
     if container == "none":
         command= f"tar {args} {tar_file} -C {output_dir}"
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+
     
     elif container == "docker":
         command= f"docker run -v {output_dir}:{output_dir} -v {tar_file}:{tar_file} {configs.docker_container} tar {args} {tar_file} -C {output_dir}"
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+
     
     elif container == "singularity":
         bindpath = ",".join(set([tar_file+":"+tar_file,output_dir+":"+output_dir]))
         command= f"singularity exec --bind {bindpath}  {configs.singularity_container} tar {args} {tar_file} -C {output_dir}"
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value}"
+
             
     else:
         raise ValueError("Invalid container")
     
-
+    for _, value in kwargs.items():
+        command += f" {value.pre} {value.value}"
     
     return command
 

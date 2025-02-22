@@ -8,7 +8,7 @@ def assemble_megahit_(
     output_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str,configs.kwgs_tuple]
 )->str:
     """
     Generate a command to run MEGAHIT assembler.
@@ -33,40 +33,34 @@ def assemble_megahit_(
     if container == "none":
         if paired:
             command= f"megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
-            for key,value in kwargs.items():
-                key=key.replace("_","-")
-                command+= f" --{key} {value}"
+
         
         else:
   
             command= f"megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
-            for key,value in kwargs.items():
-                command+= f" --{key} {value}"
+
             
     elif container =="docker":
         if paired:
             command= f"docker run -v {output_dir}:{output_dir} -v {read1}:{read1} -v {read2}:{read2} {config.docker_container} megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
-            for key,value in kwargs.items():
-                command+= f" --{key} {value}"
+
 
         else:
             command= f"docker run -v {output_dir}:{output_dir} -v {read1}:{read1} {config.docker_container} megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
-            for key,value in kwargs.items():
-                command+= f" --{key} {value}"
+
     
     elif container =="singularity":
         parent_output_dir = str(Path(output_dir).parent)
         if paired:
             command= f"singularity exec --bind {read1}:{read1},{read2}:{read2},{parent_output_dir}:{parent_output_dir} {config.singularity_container} megahit -1 {read1} -2 {read2} -o {output_dir} -t {config.megahit_cpus}"
-            for key,value in kwargs.items():
-                command+= f" --{key} {value}"
+
         
         else:
-            
             command= f"singularity exec --bind {read1}:{read1},{output_dir}:{output_dir} {config.singularity_container} megahit -r {read1} -o {output_dir} -t {config.megahit_cpus}"
-            for key,value in kwargs.items():
-                command+= f" --{key} {value}"
-                
+
+    for _,value in kwargs.items():
+        command += f" {value.pre} {value.value}"
+
     return command
             
     
