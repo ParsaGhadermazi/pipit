@@ -267,3 +267,36 @@ NewNote
 {
     width: 50%;
 }
+#render_variable
+{
+    height:3;
+}
+#save_variable
+{
+    height:3;
+}
+#variable_input_render
+{
+
+    width: 80%;
+}
+#variable_input_save
+{
+    width: 80%;
+}
+#render_button
+{
+    width: 20%;
+     margin: 0 1 0 0
+
+}
+#save_button
+{
+    width: 20%;
+     margin: 0 1 0 0
+}
+#output_text
+{
+    height: 40%;
+
+}

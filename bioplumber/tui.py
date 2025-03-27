@@ -565,9 +565,10 @@ class IOManager(Container):
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "io_render":
             try:
+                sc={}
                 code = self.query_one("#io_code_editor").text
-                exec(code)
-                data = locals()["io_table"].to_dict(orient="list")
+                exec(code,locals=sc)
+                data = sc["io_table"].to_dict(orient="list")
                 self._temp_data = data.copy()
                 table = self.query_one("#io_table")
                 table.remove_children()
@@ -582,8 +583,9 @@ class IOManager(Container):
         elif event.button.id == "io_submit":
             try:
                 code = self.query_one("#io_code_editor").text
-                exec(code)
-                self.run.io_table =locals()["io_table"].to_dict(orient="list")
+                sc={}
+                exec(code,locals=sc)
+                self.run.io_table =sc["io_table"].to_dict(orient="list")
                 self.run.io_script=code
                 self.run.save_state()
                 table = self.query_one("#io_table")

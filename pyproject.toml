@@ -21,4 +21,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 pipit = 'bioplumber.tui:main'
-nf-mgr = 'bioplumber.nf_mgr:main'
+file-mgr = 'bioplumber.file_studio:main'
