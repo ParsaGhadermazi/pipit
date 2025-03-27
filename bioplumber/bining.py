@@ -4,7 +4,9 @@ from pathlib import Path as Path
 def get_contig_coverage_metabat_(bam_file:str,
                                  out_dir:str, 
                                  config:configs.Configs,
-                                 container:str="none")->str:
+                                 container:str="none",
+                                    **kwargs: dict[str,configs.kwgs_tuple]
+                                 )->str:
     
     """
     This function will return the script to generate the coverage of contigs using metabat2.
@@ -34,6 +36,9 @@ def get_contig_coverage_metabat_(bam_file:str,
     
     else:
         raise ValueError("Invalid container")
+
+    for _,value in kwargs.items():
+        command += f" {value.pre} {value.value}"
     
     return command        
     
@@ -42,7 +47,9 @@ def bin_with_coverage_table_metabat2_(
     depth_file:str,
     out_dir:str,
     config:configs.Configs,
-    container:str="none")->str:
+    container:str="none",
+    **kwargs: dict[str,configs.kwgs_tuple]
+    )->str:
     """
     This function will return the script to bin contigs using metabat2.
 
@@ -72,5 +79,6 @@ def bin_with_coverage_table_metabat2_(
     
     else:
         raise ValueError("Invalid container")
-    
+    for _,value in kwargs.items():
+        command += f" {value.pre} {value.value}"
     return command

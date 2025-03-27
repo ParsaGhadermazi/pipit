@@ -1,5 +1,4 @@
 from textual.app import App
-from textual.widget import Widget
 from textual.widgets import (Header,
                              Footer,
                              ListItem,
@@ -15,10 +14,8 @@ from textual.widgets import (Header,
                              MarkdownViewer,
                               TabbedContent,
                              Label)
-
-from textual.screen import Screen
 import bioplumber
-from textual.widgets.selection_list import Selection
+from textual.screen import Screen
 from textual.containers import Container,Horizontal,Vertical
 from bioplumber import (configs,
                         bining,
@@ -38,11 +35,10 @@ import json
 import os
 import pandas as pd
 import inspect
-from dataclasses import dataclass
 import datetime
 import pathlib
 import shutil
-import time
+
 
 def get_available_functions():
     am=[]
@@ -195,7 +191,7 @@ class Project:
     def make_markdown_report(self):
         txt=f"# Project Name: {self.name}\n\n"
         txt+=f"## Creator: {self.creator_name} ({self.creator_email})\n"
-        txt+=f"## Table of Contents:\n"
+        txt+="## Table of Contents:\n"
         txt+="- [Time Created](#time_created)\n"
         txt+="- [Description](#description)\n"
         txt+="- [Runs](#runs)\n"
@@ -210,18 +206,18 @@ class Project:
             txt+="-------------------\n"
             txt+=f"### {run.run_id}\n"
             txt+=f"#### Time Created: {run.date_created.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            txt+=f"The following script was used to generate the input/output of the run:\n"
+            txt+="The following script was used to generate the input/output of the run:\n"
             txt+=f"```python\n{run.io_script}\n```\n"
-            txt+=f"#### Commands:\n"
+            txt+="#### Commands:\n"
             for func,arg in run.func_match_text.items():
                 txt+=f"##### {func}\n"
-                txt+=f"###### Arguments:\n"
+                txt+="###### Arguments:\n"
                 for k,v in arg.items():
                     txt+=f"- {k}: {v}\n"
-            txt+=f"#### Commands:\n"
+            txt+="#### Commands:\n"
             txt+=f"\n\nNumber of chains: {len(run.all_commands)}\n\nCommands per chain: {len(run.func_match_text)}\n\nNumber of Slurm commands: {len(run.slurm_commands)}\n\n"
         
-            txt+=f"#### Notes:\n"
+            txt+="#### Notes:\n"
             for note in run.notes:
                 txt+=f"- **{note}**:\n\n"
                 txt+=f"    {run.notes[note]}\n"
@@ -569,9 +565,10 @@ class IOManager(Container):
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "io_render":
             try:
+                sc={}
                 code = self.query_one("#io_code_editor").text
-                exec(code)
-                data = locals()["io_table"].to_dict(orient="list")
+                exec(code,locals=sc)
+                data = sc["io_table"].to_dict(orient="list")
                 self._temp_data = data.copy()
                 table = self.query_one("#io_table")
                 table.remove_children()
@@ -586,8 +583,9 @@ class IOManager(Container):
         elif event.button.id == "io_submit":
             try:
                 code = self.query_one("#io_code_editor").text
-                exec(code)
-                self.run.io_table =locals()["io_table"].to_dict(orient="list")
+                sc={}
+                exec(code,locals=sc)
+                self.run.io_table =sc["io_table"].to_dict(orient="list")
                 self.run.io_script=code
                 self.run.save_state()
                 table = self.query_one("#io_table")
@@ -623,7 +621,7 @@ class FunctionArgSelector(Screen):
         self.func_name=func_name
         self.run=run
         self.func_args=[i for i in inspect.signature(getattr(eval(func_name.split("|")[0]),func_name.split("|")[1])).parameters if i!="kwargs"]
-        
+        self._kwargs_counter=0 
         
     def compose(self):
         
@@ -635,6 +633,7 @@ class FunctionArgSelector(Screen):
                     *[Horizontal(Label(argname,classes="SelectIOtitles"),Select(zip(self.run.io_table.keys(),self.run.io_table.keys()),classes="SelectIOpts",id=argname),classes="optcontainer") for argname in self.func_args ]
                     ,id="funcargselects"
                 ),
+                Horizontal(Button("Add Custom Arguments",id="add_kwargs"),id="add_kwargs_container"),
                 Horizontal(
                     Button("Add",id="add_arg"),
                     Button("Back",id="back_arg"),
@@ -653,10 +652,22 @@ class FunctionArgSelector(Screen):
         if event.button.id == "add_arg":
             try:
                 args={i:self.query_one("#"+i).value for i in self.func_args}
+                for i in range(self._kwargs_counter):
+                    kwg=self.query_one(f"#extra_kwgs_{i}")
+                    kwgs=configs.kwgs_tuple(kwg.children[0].value,kwg.children[1].value)
+                    args[kwg.children[0].id]=kwgs
+                    
                 self.dismiss(args)
             except Exception as e:
                 self.mount(Label(f"[red]Error adding arguments\n{e}"))
-            
+        
+        if event.button.id == "add_kwargs":
+            try:
+                self.query_one("#funcargselects").mount(Horizontal(Input(id=f"extra_input_kwgs_{self._kwargs_counter}",classes="text_bar_kwargs"),Select(zip(self.run.io_table.keys(),self.run.io_table.keys()),id=f"extra_select_kwgs_{self._kwargs_counter}",classes="selectkwargs"),id=f"extra_kwgs_{self._kwargs_counter}",classes="optcontainer"))
+                self._kwargs_counter+=1
+            except Exception as e:
+                self.mount(Label(f"[red]Error adding arguments\n{e}"))
+        
 
                 
 
@@ -705,11 +716,8 @@ class FunctionSelector(Container):
                 matches=self.run.func_match_text
                 for k,v in matches.items():
                     mod_name,func_name=k.split("|")
-                    if (set(v.values())-set(self.run.io_table.keys())):
-                        missing=set(v.values())-set(self.run.io_table.keys())
-                        raise ValueError(f"All of the inputs must be selected from the IO table {missing}")
-                    for argument in zip(*[self.run.io_table[j] for _,j in v.items()]):
-                        keyword_arguments=dict(zip(v.keys(),argument))
+                    for argument in zip(*[self.run.io_table[j] for _,j in v.items() if isinstance(j,str)]+[map(lambda x:configs.kwgs_tuple(pre=j.pre,value=x),self.run.io_table[j.value]) for j in v.values() if isinstance(j,configs.kwgs_tuple)]):
+                        keyword_arguments=dict(zip([k for k,v in v.items() if isinstance(v,str)]+[k for k,v in v.items() if isinstance(v,configs.kwgs_tuple)],argument))
                         getattr(eval(mod_name),func_name)(**keyword_arguments)
                 self.mount(Label("[green]All inputs/outputs matched with functions successfully!"))
             except Exception as e:
@@ -724,7 +732,7 @@ class FunctionSelector(Container):
                 for r in range(num_args):
                     for k,v in matches.items():
                         mod_name,func_name=k.split("|")
-                        keyword_arguments=dict(zip(v.keys(),[self.run.io_table[j][r] for _,j in v.items()]))
+                        keyword_arguments=dict(zip([k for k,v in v.items() if isinstance(v,str)]+[k for k,v in v.items() if isinstance(v,configs.kwgs_tuple)],[self.run.io_table[j][r] for _,j in v.items() if isinstance(j,str)]+[configs.kwgs_tuple(pre=j.pre,value=self.run.io_table[j.value][r]) for j in v.values() if isinstance(j,configs.kwgs_tuple)]))
                         cmds.append(getattr(eval(mod_name),func_name)(**keyword_arguments))
 
                 self.run.all_commands=[cmds[i:i+cmd_per_chain] for i in range(0,len(cmds),cmd_per_chain)]                
@@ -995,7 +1003,6 @@ if __name__ == "__main__":
 
 #TODO:
 #2. Think about staging and submitting system
-#3. Create a way to go back to Welcome screen
 #4. Add a mechanism to borrow from other runs
 #5. Add a way to add custom functions
 #6. Add a directory helper to io_table

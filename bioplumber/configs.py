@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import json
+from collections import namedtuple
 
+kwgs_tuple=namedtuple("kwgs_tup",["pre","value"])
 
 @dataclass
 class Configs:

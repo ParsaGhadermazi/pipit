@@ -8,7 +8,7 @@ def qc_fastp_(
     outdir2:str|None,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str,configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use fastp to quality control fastq files.
@@ -40,8 +40,7 @@ def qc_fastp_(
             json_file=Path(outdir1).parent / "fastp.json"
             html_file=Path(outdir1).parent / "fastp.html"
             command = f"fastp -i {read1} -I {read2} -o {qcd1} -O {qcd2} -j {json_file} -h {html_file}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
         else:
             read1=Path(read1).absolute()
@@ -49,8 +48,7 @@ def qc_fastp_(
             json_file=Path(outdir1).parent / "fastp.json"
             html_file=Path(outdir1).parent / "fastp.html"
             command = f"fastp -i {read1} -o {qcd1} -j {json_file} -h {html_file}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
     elif container=="docker":
         if paired:
@@ -62,8 +60,7 @@ def qc_fastp_(
             html_file=Path(outdir1).parent / "fastp.html"
             mapfiles = f"-v {read1}:{read1} -v {read2}:{read2} -v {qcd1}:{qcd1} -v {qcd2}:{qcd2} -v {json_file}:{json_file} -v {html_file}:{html_file}"
             command = f"docker run {mapfiles} {config.docker_container} fastp -i {read1} -I {read2} -o {qcd1} -O {qcd2} -j {json_file} -h {html_file}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
         else:
             read1=Path(read1).absolute()
@@ -72,8 +69,7 @@ def qc_fastp_(
             html_file=Path(outdir1).parent / "fastp.html"
             mapfiles = f"-v {read1}:{read1} -v {qcd1}:{qcd1} -v {json_file}:{json_file} -v {html_file}:{html_file}"
             command = f"docker run {mapfiles} {config.docker_container} fastp -i {read1} -o {qcd1} -j {json_file} -h {html_file}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
     elif container=="singularity":
         if paired:
@@ -85,8 +81,7 @@ def qc_fastp_(
             html_file=Path(outdir1).parent / "fastp.html"
             mapfiles = f"{read1}:{read1},{read2}:{read2},{qcd1}:{qcd1},{qcd2}:{qcd2},{json_file}:{json_file},{html_file}:{html_file}"
             command = f"singularity exec --bind {mapfiles} {config.singularity_container} fastp -i {read1} -I {read2} -o {qcd1} -O {qcd2} -j {json_file} -h {html_file}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
         else:
             read1=Path(read1).absolute()
@@ -96,9 +91,10 @@ def qc_fastp_(
             mapfiles = f"{read1}:{read1},{qcd1}:{qcd1},{json_file}:{json_file},{html_file}:{html_file}"
             command = f"singularity exec --bind {mapfiles} {config.singularity_container} fastp -i {read1} -o {qcd1} -j {json_file} -h {html_file}"
             
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
-        
+
+    for _, value in kwargs.items():
+        command += f" {value.pre} {value.value}"
+
     return command
 
     
@@ -108,7 +104,8 @@ def generate_fastp_reports_(
     outdir:str,
     config:configs.Configs,
     container:str="none",
-                        ):
+    **kwargs: dict[str,configs.kwgs_tuple]
+                        )->str:
     """ This function generates fastp reports for the given reads.
     
     Args:
@@ -146,7 +143,12 @@ def generate_fastp_reports_(
             command = f"singularity exec --bind {outdir}:{outdir} {config.singularity_container} fastp -i {read1} -I {read2} -h {outdir}/fastp.html -j {outdir}/fastp.json"
         else:
             command = f"singularity exec --bind {outdir}:{outdir} {config.singularity_container} fastp -i {read1} -h {outdir}/fastp.html -j {outdir}/fastp.json"
+
+    else:
+        raise ValueError("Invalid container")
     
+    for _, value in kwargs.items():
+        command += f" {value.pre} {value.value}"
     return command
         
 def run_checkm_(
@@ -154,7 +156,7 @@ def run_checkm_(
     output_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str,configs.kwgs_tuple]
                         )->str:
     """
     This function will return the script to run checkm.
@@ -176,8 +178,7 @@ def run_checkm_(
 
     if container == "none":
         command = f"checkm lineage_wf {bins_dir} {output_dir}"
-        for key,value in kwargs.items():
-            command+= f" -{key} {value}"
+
     
     elif container == "docker":
         bind_dir = " -v ".join(set([bins_dir+":"+bins_dir, output_dir_parent+":"+output_dir_parent]))
@@ -190,5 +191,8 @@ def run_checkm_(
     else:
         raise ValueError("Invalid container")
     
+    for _, value in kwargs.items():
+        command += f" {value.pre} {value.value}"
+        
     return command
 

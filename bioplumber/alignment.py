@@ -7,7 +7,7 @@ def index_bowtie_(
     database_dir: str,
     configs: configs.Configs,
     container: str = "none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     ) -> str:
     """
     This function ouputs a command to use bowtie2 to index a genome.
@@ -22,23 +22,21 @@ def index_bowtie_(
         sequence_dir=Path(sequence_dir).absolute()
         database_dir=Path(database_dir).absolute()
         command = f"bowtie2-build {sequence_dir} {database_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
         
     elif container=="docker":
         sequence_dir=Path(sequence_dir).absolute()
         database_dir=Path(database_dir).absolute()
         command = f"docker run -v {sequence_dir}:{sequence_dir} -v {database_dir}:{database_dir} {configs.docker_container} bowtie2-build {sequence_dir} {database_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
-    
+
     elif container=="singularity":
         sequence_dir=Path(sequence_dir).absolute()
         database_dir=Path(database_dir).absolute()
         database_dir_parent=Path(database_dir).parent
         command = f"singularity exec {configs.singularity_container} --bind {sequence_dir}:{sequence_dir},{database_dir_parent}:{database_dir_parent} bowtie2-build {sequence_dir} {database_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
+    for _,value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     
     return command
 
@@ -77,16 +75,12 @@ def align_bowtie_(
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"bowtie2 -x {database_dir} -1 {read1} -2 {read2} -S {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
         
         else:
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"bowtie2 -x {database_dir} -U {read1} -S {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
         
     elif container=="docker":
         if paired:
@@ -95,16 +89,12 @@ def align_bowtie_(
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"docker run -v {read1}:{read1} -v {read2}:{read2} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bowtie2 -x {database_dir} -1 {read1} -2 {read2} -S {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
 
         else:
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"docker run -v {read1}:{read1} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bowtie2 -x {database_dir} -U {read1} -S {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
     
     elif container=="singularity":
         if paired:
@@ -114,8 +104,7 @@ def align_bowtie_(
             outdir=Path(outdir).absolute()
             outdir_parent=Path(outdir).parent
             command = f"singularity exec -B {read1}:{read1} -B {read2}:{read2} -B {database_dir}:{database_dir} -B {outdir_parent}:{outdir_parent} {config.singularity_container} bowtie2 -x {database_dir} -1 {read1} -2 {read2} -S {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
 
         else:
             read1=Path(read1).absolute()
@@ -123,8 +112,9 @@ def align_bowtie_(
             outdir=Path(outdir).absolute()
             outdir_parent=Path(outdir).parent
             command = f"singularity exec -B {read1}:{read1} -B {database_dir}:{database_dir} -B {outdir_parent}:{outdir_parent} {config.singularity_container} bowtie2 -x {database_dir} -U {read1} -S {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+    
+    for _,value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     
     return command
 
@@ -169,16 +159,14 @@ def bowtie2_decontaminate_(
                 output_files_zipped_aligned=Path(outdir)/f"{sample_name}_host_aligned"
                 
                 command =f"bowtie2 -p {config.bowtie2_cpus} -x {database_dir} -1 {read1} -2 {read2} --un-conc-gz {output_files_zipped_unaligned} --al-conc-gz {output_files_zipped_aligned}"
-                for key,value in kwargs.items():
-                    command = command + f" --{key} {value}"
+
             
         else:
             output_files_zipped_unaligned=Path(outdir)/f"{sample_name}_host_removed"
             output_files_zipped_aligned=Path(outdir)/f"{sample_name}_host_aligned"
             
             command =f"bowtie2 -p {config.bowtie2_cpus} -x {database_dir} -U {read1} --un-gz {output_files_zipped_unaligned} --al-gz {output_files_zipped_aligned}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
                     
     elif container=="docker":
         read1=Path(read1).absolute()
@@ -189,16 +177,14 @@ def bowtie2_decontaminate_(
             output_files_zipped_aligned=Path(outdir)/f"{sample_name}_host_aligned"
             
             command =f"docker run -v {read1}:{read1} -v {read2}:{read2} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bowtie2 -p {config.bowtie2_cpus} -x {database_dir} -1 {read1} -2 {read2} --un-conc-gz {output_files_zipped_unaligned} --al-conc-gz {output_files_zipped_aligned}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
         else:
             output_files_zipped_unaligned=Path(outdir)/f"{sample_name}_host_removed"
             output_files_zipped_aligned=Path(outdir)/f"{sample_name}_host_aligned"
             
             command =f"docker run -v {read1}:{read1} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bowtie2 -p {config.bowtie2_cpus} -x {database_dir} -U {read1} --un-gz {output_files_zipped_unaligned} --al-gz {output_files_zipped_aligned}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
     elif container=="singularity":
         read1=Path(read1).absolute()
@@ -209,16 +195,16 @@ def bowtie2_decontaminate_(
             output_files_zipped_aligned=Path(outdir)/f"{sample_name}_host_aligned"
             
             command =f"singularity exec {config.singularity_container} bowtie2 -p {config.bowtie2_cpus} -x {database_dir} -1 {read1} -2 {read2} --un-conc-gz {output_files_zipped_unaligned} --al-conc-gz {output_files_zipped_aligned}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
         else:
             output_files_zipped_unaligned=Path(outdir)/f"{sample_name}_host_removed"
             output_files_zipped_aligned=Path(outdir)/f"{sample_name}_host_aligned"
             
             command =f"singularity exec  {config.singularity_container} bowtie2 -p {config.bowtie2_cpus} -x {database_dir} -U {read1} --un-gz {output_files_zipped_unaligned} --al-gz {output_files_zipped_aligned}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+    for _,value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
+        
         
     return command 
                 
@@ -230,6 +216,7 @@ def convert_sam_bam_(
     outdir:str,
     config:configs.Configs,
     container:str="none",
+    **kwargs
 
     )->str:
     """
@@ -257,6 +244,8 @@ def convert_sam_bam_(
         outdir_parent=Path(outdir).parent
         command = f"singularity exec -B {sam_file}:{sam_file} -B {outdir_parent}:{outdir_parent} {config.singularity_container} samtools view -bS {sam_file} > {outdir}"
         
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     return command
 
 def get_mapped_reads_(
@@ -303,6 +292,9 @@ def get_mapped_reads_(
         else:
             command = f"singularity exec -B {bam_file}:{bam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -b -F 4 {bam_file} > {outdir}"
 
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
+        
     return command
 
 
@@ -353,7 +345,10 @@ def get_unmapped_reads_(
             command = f"singularity exec -B {bam_file}:{bam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -b -f 12 -F 256 {bam_file} > {outdir}"
         else:
             command = f"singularity exec -B {bam_file}:{bam_file} -B {outdir}:{outdir} {config.singularity_container} samtools view -b -f 4 {bam_file} > {outdir}"
-            
+    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
+        
     return command
 
 def sort_bam_(
@@ -380,8 +375,6 @@ def sort_bam_(
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
         command = f"samtools sort -n "
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value} "
         
         command = command + f"{bam_file} -o {outdir}"
     
@@ -389,8 +382,6 @@ def sort_bam_(
         bam_file=Path(bam_file).absolute()
         outdir=Path(outdir).absolute()
         command = f"docker run -v {bam_file}:{bam_file} -v {outdir}:{outdir} {config.docker_container} samtools sort -n "
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value} "
         
         command = command + f"{bam_file} -o {outdir}"
     
@@ -399,11 +390,12 @@ def sort_bam_(
         outdir=Path(outdir).absolute()
         outdir_parent=Path(outdir).parent
         command = f"singularity exec --bind {bam_file}:{bam_file},{outdir_parent}:{outdir_parent}  {config.singularity_container} samtools sort -n "
-        for key,value in kwargs.items():
-            command = command + f" -{key} {value} "
+
         
         command = command + f"{bam_file} -o {outdir}"
     
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     return command
 
 def sam_tools_fasq_(
@@ -413,6 +405,7 @@ def sam_tools_fasq_(
     config:configs.Configs,
     paired:bool=True,
     container:str="none",
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use samtools to convert a bam file to a fastq file.
@@ -455,6 +448,8 @@ def sam_tools_fasq_(
         else:
             command = f"singularity exec -B {input_file}:{input_file} -B {outdir1}:{outdir1} {config.singularity_container} samtools fastq {outdir1} > {input_file}"
     
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     return command
 
 def sam_tools_fasta_(
@@ -462,7 +457,9 @@ def sam_tools_fasta_(
     outdir:str,
     config:configs.Configs,
     container:str="none",
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
+    
     """
     This function ouputs a command to use samtools to convert a bam file to a fasta file.
     
@@ -488,7 +485,9 @@ def sam_tools_fasta_(
         input_file=str(Path(input_file).absolute())
         outdir_parent=str(Path(outdir).parent.absolute())
         command = f"singularity exec -B {input_file}:{input_file} -B {outdir}:{outdir} {config.singularity_container} samtools fasta {input_file} > {outdir}"
-    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
+        
     return command
 
     
@@ -496,7 +495,7 @@ def index_bwa_(
     sequence_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use bwa to index a genome.
@@ -509,8 +508,7 @@ def index_bwa_(
     if container=="none":
         sequence_dir=Path(sequence_dir).absolute()
         command = f"bwa index {sequence_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
         
     elif container=="docker":
         sequence_dir=Path(sequence_dir).absolute()
@@ -519,9 +517,9 @@ def index_bwa_(
     elif container=="singularity":
         sequence_dir=Path(sequence_dir).absolute()
         command = f"singularity exec {config.singularity_container} bwa index {sequence_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
-    
+    for _,value in kwargs.items():
+        command = command + f" --{value.pre} {value.value}"
+        
     return command
 
 
@@ -532,7 +530,7 @@ def align_bwa_(
     outdir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use bwa to align fastq files to a genome.
@@ -558,16 +556,14 @@ def align_bwa_(
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"bwa mem -t {config.bwa_cpus} {database_dir} {read1} {read2} > {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
         else:
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"bwa mem  -t {config.bwa_cpus} {database_dir} {read1} > {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
         
     elif container=="docker":
         if paired:
@@ -576,16 +572,14 @@ def align_bwa_(
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"docker run -v {read1}:{read1} -v {read2}:{read2} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bwa mem  -t {config.bwa_cpus} {database_dir} {read1} {read2} > {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
 
         else:
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"docker run -v {read1}:{read1} -v {database_dir}:{database_dir} -v {outdir}:{outdir} {config.docker_container} bwa mem {database_dir} {read1} > {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
 
                     
     elif container=="singularity":
@@ -595,16 +589,15 @@ def align_bwa_(
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"singularity exec  {config.singularity_container} bwa mem -t {config.bwa_cpus} {database_dir} {read1} {read2} > {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+
 
         else:
             read1=Path(read1).absolute()
             database_dir=Path(database_dir).absolute()
             outdir=Path(outdir).absolute()
             command = f"singularity exec {config.singularity_container} bwa mem -t {config.bwa_cpus} {database_dir} {read1} > {outdir}"
-            for key,value in kwargs.items():
-                command = command + f" --{key} {value}"
+    for _,value in kwargs.items():
+        command = command + f" --{value.pre} {value.value}"
                 
     
     return command
@@ -615,7 +608,7 @@ def find_circular_cirit_(
     cirit_jar_file_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use cirit to find circular RNA.
@@ -637,25 +630,23 @@ def find_circular_cirit_(
     
     if container=="none":
         command = f"java -jar {cirit_jar_file_dir} -i {input_file} -o {output_file}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="docker":
         command = f"docker run -v {input_file}:{input_file} -v {output_file_parent}:{output_file_parent} -v {cirit_jar_file_dir}:{cirit_jar_file_dir} {config.docker_container} java -jar {cirit_jar_file_dir} -i {input_file} -o {output_file}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
             
     
     elif container=="singularity":
         
         command = f"singularity exec --bind {input_file}:{input_file},{output_file_parent}:{output_file_parent},{cirit_jar_file_dir}:{cirit_jar_file_dir} {config.singularity_container} java -jar {cirit_jar_file_dir} -i {input_file} -o {output_file}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
             
     else :
         raise ValueError("Invalid container")   
     
-    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     return command
 
 
@@ -664,7 +655,7 @@ def mmseqs_create_db_(
     output_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use mmseqs to create a database from a fasta file.
@@ -683,18 +674,20 @@ def mmseqs_create_db_(
     
     if container=="none":
         command = f"mmseqs createdb {sequence_dir} {output_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="docker":
         command = f"docker run -v {sequence_dir}:{sequence_dir} -v {output_dir_parent}:{output_dir_parent} {config.docker_container} mmseqs createdb {sequence_dir} {output_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="singularity":
         command = f"singularity exec --bind {sequence_dir}:{sequence_dir},{output_dir_parent}:{output_dir_parent} {config.singularity_container} mmseqs createdb {sequence_dir} {output_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
+    else :
+        raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
 
     return command
 
@@ -702,7 +695,7 @@ def mmseqs_index_db_(
     db_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use mmseqs to index a database.
@@ -720,18 +713,20 @@ def mmseqs_index_db_(
     
     if container=="none":
         command = f"mmseqs createindex {db_dir} {tmp_dir}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="docker":
         command = f"docker run -v {db_dir}:{db_dir} -v {tmp_dir}:{tmp_dir} {config.docker_container} mmseqs createindex {db_dir} {tmp_dir}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="singularity":
         command = f"singularity exec --bind {db_dir}:{db_dir},{tmp_dir}:{tmp_dir} {config.singularity_container} mmseqs createindex {db_dir} {tmp_dir}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
+    else :
+        raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
         
     return command
 
@@ -763,18 +758,20 @@ def mmseqs_search_(
     
     if container=="none":
         command = f"mmseqs search {query_file} {db_dir} {output_file} {output_file_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="docker":
         command = f"docker run -v {db_dir}:{db_dir} -v {query_file}:{query_file} -v {output_file_parent}:{output_file_parent} {config.docker_container} mmseqs search {query_file} {db_dir} {output_file} {output_file_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="singularity":
         command = f"singularity exec --bind {db_dir}:{db_dir},{query_file}:{query_file},{output_file_parent}:{output_file_parent} {config.singularity_container} mmseqs search {query_file} {db_dir} {output_file} {output_file_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+        
+    else :
+        raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     
     return command
 
@@ -811,20 +808,21 @@ def mmseqs_convert_to_flat_(
     
     if container=="none":
         command = f"mmseqs convertalis {query_db} {target_db} {result_db} {results_table} --format-mode {mode}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
         
     
     elif container=="docker":
         command = f"docker run -v {query_db}:{query_db} -v {target_db}:{target_db} -v {result_db}:{result_db} -v {results_table_parent}:{results_table_parent} {config.docker_container} mmseqs convertalis {query_db} {target_db} {result_db} {results_table} --format-mode {mode}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
             
     elif container=="singularity":
         command = f"singularity exec --bind {query_db}:{query_db},{target_db}:{target_db},{result_db}:{result_db},{results_table_parent}:{results_table_parent} {config.singularity_container} mmseqs convertalis {query_db} {target_db} {result_db} {results_table} --format-mode {mode}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
+    else :
+        raise ValueError("Invalid container")
     
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     return command
 
 def mmseqs_easy_search_(
@@ -857,18 +855,21 @@ def mmseqs_easy_search_(
     
     if container=="none":
         command = f"mmseqs easy-search {query_file} {target_file} {output_file} {output_file_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
             
     elif container=="docker":
         command = f"docker run -v {query_file}:{query_file} -v {target_file}:{target_file} -v {output_file_parent}:{output_file_parent} {config.docker_container} mmseqs easy-search {query_file} {target_file} {output_file} {output_file_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="singularity":
         command = f"singularity exec --bind {query_file}:{query_file},{target_file}:{target_file},{output_file_parent}:{output_file_parent} {config.singularity_container} mmseqs easy-search {query_file} {target_file} {output_file} {output_file_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+        
+    else :
+        raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
+        
             
     return command
     
@@ -877,7 +878,7 @@ def mmseqs_download_database_(
     output_dir:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use mmseqs to download a database.
@@ -897,19 +898,21 @@ def mmseqs_download_database_(
     
     if container=="none":
         command = f"mmseqs databases {database_name} {output_dir} {output_dir_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="docker":
         command = f"docker run -v {output_dir_parent}:{output_dir_parent} {config.docker_container} mmseqs databases {database_name} {output_dir} {output_dir_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="singularity":
         command = f"singularity exec --bind {output_dir_parent}:{output_dir_parent} {config.singularity_container} mmseqs databases {database_name} {output_dir} {output_dir_parent}/tmp"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
+    else :
+        raise ValueError("Invalid container")
     
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
+        
     return command
 def fastani_compare_genomes_(
     query_genomes:str|Iterable[str],
@@ -917,7 +920,7 @@ def fastani_compare_genomes_(
     output_file:str,
     config:configs.Configs,
     container:str="none",
-    **kwargs
+    **kwargs: dict[str, configs.kwgs_tuple]
     )->str:
     """
     This function ouputs a command to use fastANI to compare genomes.
@@ -953,24 +956,24 @@ def fastani_compare_genomes_(
     
     if container=="none":
         command = f"fastANI --ql {tmp_dir_q} --rl {tmp_dir_r} -o {output_file}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
     
     elif container=="docker":
         bind_paths=" -v ".join([i+":"+i for i in query_genomes_parent+reference_genomes_parent+[output_file_parent]])
         command = f"docker run -v {bind_paths} {config.docker_container} fastANI --ql {tmp_dir_q} --rl {tmp_dir_r} -o {output_file}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
 
     
     elif container=="singularity":
         bind_paths=",".join([i+":"+i for i in query_genomes_parent+reference_genomes_parent+[output_file_parent]])
         command = f"singularity exec --bind {bind_paths} {config.singularity_container} fastANI --ql {tmp_dir_q} --rl {tmp_dir_r} -o {output_file}"
-        for key,value in kwargs.items():
-            command = command + f" --{key} {value}"
+
         
     
     else:
         raise ValueError("Invalid container")
+    
+    for _, value in kwargs.items():
+        command = command + f" {value.pre} {value.value}"
     
     return command

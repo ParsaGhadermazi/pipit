@@ -164,6 +164,11 @@ ProjectAlreadyExists
     width: 25%;
 }
 
+#add_kwargs_container
+{
+    align: center middle;
+    height:3;
+}
 
 #funcarglowbutsett
 {
@@ -181,7 +186,6 @@ align: center middle;
 #funcargselects
 {
     width: 100%;
-    height: 60%;
     content-align: center middle;
     padding:1 0 0 0;
     overflow-y: scroll;
@@ -250,4 +254,49 @@ NewNote
 #folder_tree
 {
     margin: 0 1 0 1;
+}
+
+.text_bar_kwargs
+{
+    width:25%;
+    content-align: center middle;
+    text-align: center;
+    align: center middle;
+}
+.selectkwargs
+{
+    width: 50%;
+}
+#render_variable
+{
+    height:3;
+}
+#save_variable
+{
+    height:3;
+}
+#variable_input_render
+{
+
+    width: 80%;
+}
+#variable_input_save
+{
+    width: 80%;
+}
+#render_button
+{
+    width: 20%;
+     margin: 0 1 0 0
+
+}
+#save_button
+{
+    width: 20%;
+     margin: 0 1 0 0
+}
+#output_text
+{
+    height: 40%;
+
 }
