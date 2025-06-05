@@ -282,7 +282,7 @@ NewNote
 }
 #variable_input_save
 {
-    width: 80%;
+    width: 70%;
 }
 #render_button
 {
@@ -292,7 +292,12 @@ NewNote
 }
 #save_button
 {
-    width: 20%;
+    width:10;
+     margin: 0 1 0 0
+}
+#save_script_button
+{
+    width: 10;
      margin: 0 1 0 0
 }
 #output_text

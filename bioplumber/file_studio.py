@@ -15,6 +15,7 @@ from textual.widgets import (Header,
                               TabbedContent,
                              Label)
 import bioplumber
+from bioplumber import config
 from textual.screen import Screen
 from textual.containers import Container,Horizontal,Vertical
 from bioplumber import (configs,
@@ -30,16 +31,11 @@ from bioplumber import (configs,
 from textual import on, work
 from textual.binding import Binding
 from textual.validation import Number
-import math
-import json
-import os
 import pandas as pd
-import inspect
-import datetime
+import time
 import pathlib
-import shutil
+import datetime
 
-    
 class DirectoryReference(Container):
     def compose(self):
         yield Vertical(
@@ -50,7 +46,8 @@ class DirectoryReference(Container):
                     TextArea(id="selected_dir")
                         )
                 ))
-    
+
+
     def on_input_changed(self, event: Input.Changed):
         try:
             self.query_one("#folder_tree").path=event.value
@@ -74,12 +71,14 @@ class MGRScreen(Screen):
             Horizontal(
                  Input(placeholder="Variable Name",id="variable_input_render")
                  ,Button("Render Variable",id="render_button"),
+                 
                  id="render_variable"
             ),
             DataTable(id="output_text"),
             Horizontal(
                  Input(placeholder="Save Directory",id="variable_input_save"),
                  Button("Save",id="save_button"),
+                 Button("Save Script",id="save_script_button"),
                  id="save_variable"
             ),
             Footer()    
@@ -125,17 +124,51 @@ class MGRScreen(Screen):
                 else:
                     with open(self.query_one("#variable_input_save").value,"w") as f:
                         f.write(str(data))
+                self.query_one("#output_text").mount(TextArea(text=f"Variable {variable} saved successfully"))
             except Exception as e:
                 self.query_one("#output_text").mount(TextArea(text=f"Error saving variable\n{e}"))
-           
-        
+        if event.button.id == "save_script_button":
+            try:
+                code = self.query_one("#io_code_editor").text
+                with open((pathlib.Path(bioplumber.get_config()["base_directory"])/"scripts")/f"{datetime.datetime.now()}.txt","w") as f:
+                    f.write(code)
+                self.query_one("#output_text").remove_children()
+                self.query_one("#output_text").mount(Label("[green]Script saved successfully"))
+            except Exception as e:
+                self.query_one("#output_text").remove_children()
+                self.query_one("#output_text").mount(Label(f"[red]Error saving script\n{e}"))
+class SetBaseDir(Screen):
+    def compose(self):
+        yield Vertical(
+            Header(show_clock=True),
+            Static("Please set a base directory to continue"),
+            Input(placeholder="Base Directory",id="base_dir_input"),
+            Button("Set Base Directory",id="set_base_dir_button"),
+            Footer()
+        )
+    
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "set_base_dir_button":
+            base_dir = self.query_one("#base_dir_input").value
+            try:
+                pathlib.Path(base_dir).mkdir(parents=True, exist_ok=True)
+                if not (pathlib.Path(base_dir)/"scripts").exists():
+                    (pathlib.Path(base_dir)/"scripts").mkdir()
+                bioplumber.set_base_directory(base_dir)
+                self.dismiss()
+            except Exception as e:
+                self.mount(Label(f"[Red]Error setting base directory: {e}"))
         
 
 class FileManager(App):
     CSS_PATH = "tui_css.tcss"
-    
-    def on_mount(self):
+    @work(exclusive=True)
+    async def on_mount(self):
         self.theme="gruvbox"
+        print("Bioplumber File Manager")
+        if config["base_directory"]=="":
+            await self.push_screen(SetBaseDir(),"base-dir-conf",wait_for_dismiss=True)
+            
         self.push_screen(MGRScreen(),"mgr-screen" )
 
 def main():
