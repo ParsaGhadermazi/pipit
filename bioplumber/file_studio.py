@@ -57,33 +57,27 @@ class DirectoryReference(Container):
     def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected):
         self.query_one("#selected_dir").text=str(event.path)
         
-
-class MGRScreen(Screen):
-    
+class Manager(Container):
     def compose(self):
-        yield Vertical(
-            Header(show_clock=True),
-            Horizontal(TextArea.code_editor(text="",
-                                            language="python",
-                                            id="io_code_editor",
-                                            show_line_numbers=True),
-                                            DirectoryReference(id="dir_ref")),
-            Horizontal(
-                 Input(placeholder="Variable Name",id="variable_input_render")
-                 ,Button("Render Variable",id="render_button"),
-                 
-                 id="render_variable"
-            ),
-            DataTable(id="output_text"),
-            Horizontal(
-                 Input(placeholder="Save Directory",id="variable_input_save"),
-                 Button("Save",id="save_button"),
-                 Button("Save Script",id="save_script_button"),
-                 id="save_variable"
-            ),
-            Footer()    
-            )
-    
+            yield Vertical(Horizontal(TextArea.code_editor(text="",
+                                             language="python",
+                                             id="io_code_editor",
+                                             show_line_numbers=True),
+                                             DirectoryReference(id="dir_ref")),
+             Horizontal(
+                  Input(placeholder="Variable Name",id="variable_input_render")
+                  ,Button("Render Variable",id="render_button"),
+                
+                  id="render_variable"
+             ),
+             DataTable(id="output_text"),
+             Horizontal(
+                  Input(placeholder="Save Directory",id="variable_input_save"),
+                  Button("Save",id="save_button"),
+                  Button("Save Script",id="save_script_button"),
+                  id="save_variable"
+             ))
+        
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "render_button":
             try:
@@ -132,11 +126,62 @@ class MGRScreen(Screen):
                 code = self.query_one("#io_code_editor").text
                 with open((pathlib.Path(bioplumber.get_config()["base_directory"])/"scripts")/f"{datetime.datetime.now()}.txt","w") as f:
                     f.write(code)
-                self.query_one("#output_text").remove_children()
-                self.query_one("#output_text").mount(Label("[green]Script saved successfully"))
+                self.mount(Label("[green]Script saved successfully",id="script_save_label"))
+                self.set_timer(3, lambda: self.query_one("#script_save_label").remove())
             except Exception as e:
-                self.query_one("#output_text").remove_children()
-                self.query_one("#output_text").mount(Label(f"[red]Error saving script\n{e}"))
+                self.query_one("#output_text").mount(Label(f"[red]Error saving script\n{e}",id="script_save_failed_label"))
+                self.set_timer(3, lambda: self.query_one("#script_save_failed_label").remove())
+
+        
+class History(Container):
+    def compose(self):
+        yield Vertical(
+            ListView(*[ListItem(Static(f"{i}")) for i in sorted(get_history_files(bioplumber.get_config()["base_directory"]),reverse=True)],id="history_list_view"),
+            TextArea.code_editor(text="",
+                                             language="python",
+                                             id="history_text_area",
+                                             show_line_numbers=True),
+                                             
+        )
+
+    def on_list_view_selected(self, event: ListView.Selected):
+        file_name = event.item.children[0].renderable
+        file_path = pathlib.Path(bioplumber.get_config()["base_directory"]) / "scripts" / file_name
+        if file_path.exists():
+            with open(file_path, "r") as f:
+                content = f.read()
+            self.query_one("#history_text_area").text = content
+        else:
+            self.query_one("#history_text_area").text = f"File {file_name} does not exist."
+
+    
+
+class MGRScreen(Screen):
+    def __init__(self):
+        super().__init__()
+        self.manager = Manager(id="manager_container")
+        self.history = History(id="history_container")
+    
+    def compose(self):
+
+        yield Header(show_clock=True)
+        with TabbedContent("Manager","History",id="tabs"):
+                yield self.manager
+                yield self.history
+                
+        yield Footer()
+    
+    @on(TabbedContent.TabActivated)
+    async def refresh_history(self):
+        self.history.query_one("#history_list_view").remove_children()
+        self.history.query_one("#history_list_view").mount(
+            *[ListItem(Static(f"{i}")) for i in sorted(get_history_files(bioplumber.get_config()["base_directory"]),reverse=True)]
+        )
+
+    
+
+
+                
 class SetBaseDir(Screen):
     def compose(self):
         yield Vertical(
@@ -170,6 +215,12 @@ class FileManager(App):
             await self.push_screen(SetBaseDir(),"base-dir-conf",wait_for_dismiss=True)
             
         self.push_screen(MGRScreen(),"mgr-screen" )
+
+def get_history_files(base_dir):
+    history_dir = pathlib.Path(base_dir) / "scripts"
+    if not history_dir.exists():
+        return []
+    return [f.name for f in history_dir.glob("*.txt") if f.is_file()]
 
 def main():
     mgr=FileManager()
