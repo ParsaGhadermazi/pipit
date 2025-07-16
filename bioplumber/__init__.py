@@ -14,7 +14,7 @@ def get_config():
     return config
 
 config=get_config()
-if not pathlib.Path(config.get('base_directory')):
+if not pathlib.Path(config.get('base_directory')).exists():
     config['base_directory'] = ""
 
     

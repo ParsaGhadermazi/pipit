@@ -85,7 +85,7 @@ class Manager(Container):
                 code = self.query_one("#io_code_editor").text
                 variable=self.query_one("#variable_input_render").value
                 sc={}
-                exec(code,locals=sc)
+                exec(code,globals(),sc)
                 data=sc[variable]
                 if isinstance(data, pd.DataFrame):
                     temp_data = data.to_dict(orient="list")
@@ -111,7 +111,7 @@ class Manager(Container):
                 code = self.query_one("#io_code_editor").text
                 variable=self.query_one("#variable_input_render").value
                 sc={}
-                exec(code,locals=sc)
+                exec(code,globals(),sc)
                 data=sc[variable]
                 if isinstance(data, pd.DataFrame):
                     data.to_csv(self.query_one("#variable_input_save").value,index=False)
